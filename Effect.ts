@@ -13,11 +13,13 @@ export class Effect<Inputs extends Record<string, Subscribable<any>>, T> extends
     /**
      * Creates a new Computed signal with a function that computes its value.
      * @param fn - The function that computes the value of the computed signal.
+     * @param [standalone=true] - A standalone effect gets GCed when it's no longer being held. A non standalone effect only gets GCed if it and none of its sources are held any longer.
      */
     constructor(
         public readonly sources: Inputs,
         // The function that is called to compute the current value of this Subscribable.
-        public fn: (v: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>) => T
+        public fn: (v: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>) => T,
+        standalone:boolean = true
     )
     {
         super();
@@ -25,7 +27,7 @@ export class Effect<Inputs extends Record<string, Subscribable<any>>, T> extends
         // this._source_cache = Object.fromEntries(Object.entries(sources).map(v => ([v[0], null]))) as any;
         for (let key in sources)
         {
-            sources[key].subscribe(a.bind(this,key,fn));
+            sources[key].subscribe(a.bind(this,key,fn), standalone);
             // Not all subscribables have a value at all times.
             this._source_cache[key] = (sources[key] as any)["get"]?.() ?? null;
         }
@@ -107,7 +109,8 @@ function a<T>(this: any, key:string ,fn : any, value : T)
 export function effect<Inputs extends Record<string, Subscribable<any>>, T>
     (
         sources: Inputs,
-        fn: (v: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>) => T
+        fn: (v: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>) => T,
+        standalone:boolean = true
     )
 {
     const res = {
@@ -121,7 +124,7 @@ export function effect<Inputs extends Record<string, Subscribable<any>>, T>
 
     for (let key in sources)
     {
-        sources[key].subscribe(a.bind(res,key,fn))
+        sources[key].subscribe(a.bind(res,key,fn), standalone)
     }
 
     return res;

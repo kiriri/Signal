@@ -1,11 +1,13 @@
+//@ts-nocheck
+
 import { Computed } from "./Computed";
-import { Signal } from "./Signal";
+import { NativeSignal } from "./Signal";
 
 describe("Computed Signal", () => {
     test("emits a change when any of its constituent signals change", () => {
         // Create instances of Signal and Computed
-        const signal1 = new Signal<number>(0);
-        const signal2 = new Signal<string>("initial");
+        const signal1 = new NativeSignal<number>(0);
+        const signal2 = new NativeSignal<string>("initial");
         const computed = new Computed(() => signal1.get() + signal2.get());
 
         // Subscribe to the Computed signal

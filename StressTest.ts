@@ -1,16 +1,16 @@
 // src/StressTest.ts
-import { Signal } from "./Signal.js";
+import { NativeSignal } from "./Signal.js";
 
 const numSignals = 1000;
 const numSubscribersPerSignal = 100;
 const numIterations = 10000;
 
 function stressTest() {
-    const signals: Signal<number>[] = [];
+    const signals: NativeSignal<number>[] = [];
 
     // Create a large number of signals
     for (let i = 0; i < numSignals; i++) {
-        signals.push(new Signal(i));
+        signals.push(new NativeSignal(i));
     }
 
     // Subscribe a large number of subscribers to each signal
@@ -18,7 +18,7 @@ function stressTest() {
         for (let j = 0; j < numSubscribersPerSignal; j++) {
             signal.subscribe((value: number) => {
                 // Do nothing, just simulate a subscriber
-            });
+            }, false);
         }
     }
 

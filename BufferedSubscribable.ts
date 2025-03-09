@@ -2,6 +2,9 @@ import { Subscribable } from "./Subscribable";
 
 /**
  * Represents a subscribable value that can be observed for changes.
+ * Eg an output can be wrapped inside a buffered subscribable to always 
+ * store the last emitted value, even though outputs themselves are not
+ * stateful.
  */
 export class BufferedSubscribable<T> extends Subscribable<T[]>
 {
@@ -59,7 +62,7 @@ export class BufferedSubscribable<T> extends Subscribable<T[]>
 
     override subscribe(fn: (value: T[]) => any | void): this
     {
-        super.subscribe(fn);
+        super.subscribe(fn, true);
 
         // If at least one item exists in buffer, tell the new subscription as soon
         // as the transaction ends.

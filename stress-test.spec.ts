@@ -1,11 +1,13 @@
+//@ts-nocheck
+
 import { Computed } from "./Computed.js";
-import { Signal } from "./Signal.js";
+import { NativeSignal } from "./Signal.js";
 
 describe('StressTest', () => {
   it('should perform stress test on signals and computed signals', async () => {
     // Create some signals
-    const signal1 = new Signal(0);
-    const signal2 = new Signal(0);
+    const signal1 = new NativeSignal(0);
+    const signal2 = new NativeSignal(0);
 
     // Create a computed signal that depends on the above signals
     const computedSignal = new Computed(function(){return signal1.get() + signal2.get()});

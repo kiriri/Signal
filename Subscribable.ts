@@ -5,6 +5,8 @@
 // {
 //     Subscribable.global_transaction_depth++;
 
+import { uid, uid2 } from "./Shared/UID";
+
 //     const res = await fn();
     
 //     Subscribable.global_transaction_depth--;
@@ -13,6 +15,26 @@
 // }
 
 export type StatefulSubscribable<T> = Subscribable<T> & {get():T};
+
+
+
+
+// TODO : This is a fake WeakRef. Using the real one results in bugs:
+// We want subscribers to disappear from the subscribers array when they are no longer used. But we don't want this subscribable,
+// which active subscribers listen to, to be removed. WeakRefs are weak in both directions! Therefore we need to store "Is listening to"
+// just to keep the source alive!
+class FakeWeakRef<T>
+{
+    constructor(public value:T)
+    {
+
+    }
+
+    deref()
+    {
+        return this.value;
+    }
+}
 
 /**
  * Represents a subscribable value that can be observed for changes.
@@ -34,21 +56,41 @@ export class Subscribable<T>
     static global_transaction_depth : number = 0;
 
     // These functions want to be called when this Subscribable's value changes.
+    // We store them as WeakRefs so they get GCed when nobody uses the object anymore.
     subscribers: Set<WeakRef<(value: T) => any>> | undefined;
+
+    readonly uid = uid();
 
     /**
      * Subscribes a function to be called when the value of this Subscribable changes.
      * @param fn - The function to subscribe.
+     * @param function_owns_signal - If true, this subscribable will not GC while the function is being held. If false, the function will not GC while the signal is held.
      */
-    subscribe(fn: (value: T) => any|void)
+    subscribe(fn: (value: T) => any|void, function_owns_signal : boolean|null = false)
     {
+        if(typeof fn !== "function")
+            throw new Error("NOT A FUNCTION!")
         if (Subscribable.global_listeners)
             Subscribable.global_listeners.push(this);
 
         if (!this.subscribers)
             this.subscribers = new Set();
 
-        this.subscribers.add((fn as any)["$weakRef"]??=new WeakRef(fn));
+        
+        if(function_owns_signal)
+        {
+            this.subscribers.add((fn as any)["$weakRef"]??=new WeakRef(fn));
+            (fn as any)[this.uid] = this; // Don't remove the weak ref until this is removed as well
+        }
+        else if(function_owns_signal === false)
+        {
+            this.subscribers.add((fn as any)["$fweakRef"]??=new FakeWeakRef(fn))
+        }
+        else
+        {
+            this.subscribers.add((fn as any)["$weakRef"]??=new WeakRef(fn))
+        }
+
 
         return this;
     }
@@ -61,7 +103,11 @@ export class Subscribable<T>
     {
         if (this.subscribers)
         {
-            this.subscribers.delete((fn as any)["$weakRef"]);
+            if((fn as any)["$weakRef"])
+                this.subscribers.delete((fn as any)["$weakRef"]);
+            if((fn as any)["$fweakRef"])
+                this.subscribers.delete((fn as any)["$fweakRef"]);
+            delete (fn as any)[this.uid];
         }
 
         return this;
@@ -108,7 +154,7 @@ export class Subscribable<T>
             this.unsubscribe(subscriber);
             resolve(v);
         }
-        this.subscribe(subscriber);
+        this.subscribe(subscriber,false);
         return new Promise((_resolve)=>{
             resolve = _resolve
         })

@@ -5,7 +5,7 @@ import { StatefulSubscribable, Subscribable } from "./Subscribable";
 /**
  * Represents a real Subscribable value that is stored in this Signal. 
  */
-export class Signal<T> extends Subscribable<T> implements StatefulSubscribable<T>
+export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscribable<T>
 {
 
     // The internal value. Only get it directly if you want to make sure no computed type subscribes to it.
@@ -62,6 +62,11 @@ export class Signal<T> extends Subscribable<T> implements StatefulSubscribable<T
             return;
         this._value = value;
         this.emit(value)
+    }
+
+    override emit(value: T = this._value): void
+    {
+        super.emit(value);
     }
 }
 

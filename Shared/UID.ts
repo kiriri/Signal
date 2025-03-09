@@ -6,7 +6,7 @@ let counter = 0;
  */
 export function uid()
 {
-    return crypto.randomUUID()//
+    return crypto.randomUUID() as string//
 }
 
 /**

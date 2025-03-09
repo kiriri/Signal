@@ -1,6 +1,6 @@
 import { BufferedSubscribable } from "./BufferedSubscribable";
 import { Computed } from "./Computed";
-import { Signal } from "./Signal";
+import { NativeSignal } from "./Signal";
 import { StatefulSubscribable, Subscribable } from "./Subscribable";
 
 
@@ -19,6 +19,8 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
     {
         super();
         this._internal = new Set(items);
+
+
     }
 
     get(): Set<T>
@@ -93,7 +95,7 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
             }
         }
 
-        const signal = new Signal(counter);
+        const signal = new NativeSignal(counter);
 
         this.on_change.subscribe((values) =>
         {
@@ -145,7 +147,7 @@ export function SignalSetOperation(set: SignalSet<number> | SignalSet<StatefulSu
         // a list of subscription functions for use in unsubscribing.
         const _cached_subscribers = new Map<StatefulSubscribable<number>, (v: number) => any>();
 
-        const result = new Signal(0);
+        const result = new NativeSignal(0);
 
 
         if (operation === "sum")
@@ -172,7 +174,7 @@ export function SignalSetOperation(set: SignalSet<number> | SignalSet<StatefulSu
                     _cache.set(item, new_value);
                 }
 
-                item.subscribe(on_change);
+                item.subscribe(on_change, false);
                 _cached_subscribers.set(item, on_change);
             } :
             function listen_to_item_product(item: StatefulSubscribable<number>)
@@ -189,7 +191,7 @@ export function SignalSetOperation(set: SignalSet<number> | SignalSet<StatefulSu
                     _cache.set(item, new_value);
                 }
 
-                item.subscribe(on_change);
+                item.subscribe(on_change, false);
                 _cached_subscribers.set(item, on_change);
             }
 

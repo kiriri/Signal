@@ -1,18 +1,18 @@
-import { uid } from "../../../Shared/UID";
-import { Signal } from "../../Signal";
+import { uid } from "../../Shared/UID";
+import { NativeSignal } from "../../Signal";
 import { SignalSet } from "../../SignalSet";
 import { StatefulSubscribable, Subscribable } from "../../Subscribable";
 
 export class CountSetSignals<
     G,
     T extends StatefulSubscribable<G>
-> extends Signal<number>
+> extends NativeSignal<number>
 {
     // true_values = new WeakSet<StatefulSubscribable<G>>();
     // we need to store some information, like the unsubscribe function reference,
     // in each signal object, because using large maps becomes prohibitively expensive.
     // we will use the uid as a field key.
-    readonly uid = uid();
+    // readonly uid = uid();
     readonly uid2 = uid();
     // subscribers_map = new WeakMap<StatefulSubscribable<G>, (value: G) => any>();
 
@@ -75,7 +75,7 @@ export class CountSetSignals<
         }
 
         let updater = this.on_update.bind(this,target);
-        target.subscribe(updater);
+        target.subscribe(updater, false);
         (target as any)[this.uid] = updater;
         // this.subscribers_map.set(target, updater);
     }
