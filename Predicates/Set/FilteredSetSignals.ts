@@ -40,7 +40,8 @@ export class FilteredSetSignals<INPUT extends StatefulSubscribable<any>> extends
     {
         if (!value)
         {
-            throw new Error("Cannot set null or undefined ", value);
+            console.log(value)
+            throw new Error("Cannot set null or undefined ");
         }
         return super.add(value);
     }

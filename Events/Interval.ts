@@ -32,7 +32,6 @@ export function Interval(delta: number) : NativeSignal<number>
         // Set up the interval
         const intervalId = setInterval(() =>
         {
-            console.log("INTERVAL HAPPENS ", event)
             // Get the callback from the weak reference
             const cb = weakRef.deref();
             if (cb)

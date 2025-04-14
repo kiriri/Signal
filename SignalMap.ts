@@ -63,6 +63,7 @@ export class SignalMap<K, V> extends Subscribable<Map<K, V>> implements Stateful
 
             result.subscribe(v =>
             {
+                console.log("Reference changed ", v);
                 if (v === undefined)
                 {
                     this.delete(key);
@@ -80,11 +81,14 @@ export class SignalMap<K, V> extends Subscribable<Map<K, V>> implements Stateful
     set(key: K, value: V)
     {
         let exists = this._internal.get(key);
+        console.log("Triggered ", exists, " vs ", value)
         if (exists !== value)
         {
             this._internal.set(key, value);
             this._signals?.get(key)?.set(value);
-            this.on_change.emit({ event: "add", key, value });
+            if(exists === undefined)
+                this.on_change.emit({ event: "add", key, value });
+            console.log("Emitted on_change ", this.on_change);
             this.emit(this._internal);
         }
     }
