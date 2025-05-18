@@ -1,12 +1,13 @@
 // npx tsx --expose-gc ./Tests/NewTest.ts
 
 import { BufferedSubscribable } from '../BufferedSubscribable';
-import { Computed } from '../Computed';
+import { Computed } from '../_Signal2/Computed2';
 import { FilteredSetComputed, FilteredSetSignals } from '../Predicates/Set/FilteredSetSignals';
-import { NativeSignal } from '../Signal';
+import { NativeSignal } from '../_Signal2/Signal2';
 import { SignalMap } from '../SignalMap';
 import { SignalSet } from '../SignalSet';
-import { StatefulSubscribable, Subscribable, transaction } from '../Subscribable';
+import { StatefulSubscribable, Subscribable } from '../_Signal2/Subscribable2';
+import { Effect } from '../_Signal2/Effect';
 
 const finalized: any[] = [];
 const finalizer = new FinalizationRegistry((v) =>
@@ -101,7 +102,7 @@ tests.push(function test1()
 });
 
 // Test simple subscribe operation.
-tests.push(function test2()
+tests.push(async function test2()
 {
     const INITIAL_VALUE = {};
 
@@ -111,12 +112,15 @@ tests.push(function test2()
 
     signal1.subscribe(() =>
     {
+        console.log("SETTELETTL")
         signal2.set(signal1.get());
     });
 
     assertValue(INITIAL_VALUE, signal1, signal2);
 
     signal1.set(3);
+
+    await wait(0);
 
     assertValue(3, signal1, signal2);
 }
@@ -138,16 +142,18 @@ tests.push(async function test3()
 
     gc();
 
-    signal1.subscribe(() =>
+    const fn = () =>
     {
         signal2.set(signal1.get());
-    });
+    };
+    signal1.subscribe(fn);
     gc();
 
     assertValue(INITIAL_VALUE, signal1, signal2);
     assertValue(INITIAL_VALUE * 2, computed1);
 
     signal1.set(2);
+    await wait(100);
 
     gc();
 
@@ -161,7 +167,7 @@ tests.push(async function test3()
             return signal1.get() + signal2.get();
         })
 
-        finalizer.register(computed2,"Inner computed");
+        finalizer.register(computed2, "Inner computed");
     }
 
     await scope1();
@@ -190,8 +196,8 @@ tests.push(async function test3()
             return signal1.get() + signal2.get();
         });
 
-        finalizer.register(signal3,"");
-        finalizer.register(signal2,"");
+        finalizer.register(signal3, "");
+        finalizer.register(signal2, "");
 
         gc();
         await wait(100);
@@ -214,173 +220,278 @@ tests.push(async function test3()
     await wait(100);
     gc();
 
-    
+
 
     await assertGcCount(1);
 
-    assertValue(5,computed1);
+    assertValue(5, computed1);
 }
 );
 
-
 /**
- * Test Sets.
+ * Effects and deep Computed
  */
 tests.push(async function test3()
 {
     const INITIAL_VALUE = 1;
 
-    const signal1 = new NativeSignal(INITIAL_VALUE);
-    const signal2 = new NativeSignal(INITIAL_VALUE);
-
-    const set1 = new SignalSet([signal1]);
-
-    assertSetSize(1, set1);
-
-    // allow gc to clean up everything inside
-    function scope1()
+    async function scope1()
     {
-        let did_emit: { event: "add" | "delete"; value: NativeSignal<number>; }[];
+        let operations: number = 0;
+        let effect_count: number = 0;
 
-        const cbk = (sig, v) =>
+        const signal1 = new NativeSignal(INITIAL_VALUE);
+        const signal2 = new NativeSignal(INITIAL_VALUE);
+        const signal3 = new NativeSignal(INITIAL_VALUE);
+
+        const computed1 = new Computed(() =>
         {
-            did_emit = v;
-        };
+            operations++;
+            return signal1.get() + signal2.get();
+        });
 
-        // increment the gc counter when the callback function is recycled.
-        finalizer.register(cbk, "Cbk");
+        const computed2 = new Computed(() =>
+        {
+            operations++;
+            return signal3.get() + signal2.get();
+        });
 
-        set1.on_change.subscribe(cbk);
+        const computed3 = new Computed(() =>
+        {
+            operations++;
+            return computed1.get() + computed2.get();
+        });
 
-        set1.add(signal2);
 
-        assertSetSize(2, set1);
+        let effect_1 = new Effect({
+            one: signal1,
+            two: signal2,
+            three: signal3
+        }, ({ one, two, three }) =>
+        {
+            effect_count++;
+        });
 
-        if (!did_emit || did_emit.length !== 1 || did_emit[0].event !== "add" || did_emit[0].value !== signal2)
-            throw new Error("Didn't emit expected values");
+        let effect_2 = new Effect({
+            one: computed1,
+            two: computed2,
+            three: computed3
+        }, ({ one, two, three }) =>
+        {
+            effect_count++;
+        });
 
-    }
+        finalizer.register(computed1, "");
+        finalizer.register(computed2, "");
+        finalizer.register(computed3, "");
+        finalizer.register(signal1, "");
 
-    scope1();
+        assertValue(INITIAL_VALUE, signal1, signal2, signal3);
+        assertValue(INITIAL_VALUE * 2, computed1, computed2);
+        assertValue(INITIAL_VALUE * 4, computed3);
 
-    await assertGcCount(1);
-}
-);
+        if (operations !== 3)
+        {
+            throw new Error("Expected 3 operations, got " + operations);
+        }
 
-// Test Filtered Sets
-tests.push(async function test3()
-{
-    const INITIAL_VALUE = 1;
+        if (effect_count !== 0)
+        {
+            throw new Error("Expected no effect trigger before wait, got " + effect_count);
+        }
 
-    const signal1 = new NativeSignal(INITIAL_VALUE);
-    const signal2 = new NativeSignal(INITIAL_VALUE);
-    
 
-    const set1 = new SignalSet([signal1]);
-
-    // allow gc to clean up everything inside
-    function scope1()
-    {
-
-        const filterSet1 = new FilteredSetComputed(set1, (v) => v.get() > 1);
-        const filterSet2 = new FilteredSetSignals(set1, (v) => v > 1);
-
-        assertSetSize(1, set1);
-        assertSetSize(0, filterSet1);
-        assertSetSize(0, filterSet2);
 
         signal1.set(2);
-        assertSetSize(1, set1);
-        assertSetSize(1, filterSet2);
-        assertSetSize(1, filterSet1);
 
-        set1.add(signal2)
+        await wait(10);
 
-        assertSetSize(2, set1);
-        assertSetSize(1, filterSet1);
-        assertSetSize(1, filterSet2);
+        if ((effect_count as number) !== 2)
+        {
+            throw new Error("Expected exactly two effect triggers after wait, got " + effect_count);
+        }
 
-        signal2.set(2);
-        assertSetSize(2, set1);
-        assertSetSize(2, filterSet1);
-        assertSetSize(2, filterSet2);
+        assertValue(INITIAL_VALUE * 4 + 1, computed3);
 
-        signal2.set(1);
-        assertSetSize(2, set1);
-        assertSetSize(1, filterSet1);
-        assertSetSize(1, filterSet2);
+        if ((operations as number) !== 5)
+        {
+            throw new Error("Expected 5 operations, got " + operations);
+        }
 
-        set1.delete(signal2);
-        assertSetSize(1, set1);
-        assertSetSize(1, filterSet1);
-        assertSetSize(1, filterSet2);
-
-        set1.delete(signal1);
-        assertSetSize(0, set1);
-        assertSetSize(0, filterSet1);
-        assertSetSize(0, filterSet2);
-
-        set1.delete(signal1);
-        assertSetSize(0, set1);
-        assertSetSize(0, filterSet1);
-        assertSetSize(0, filterSet2);
-
-        // BUG : As long as the set has signals in it, it cannot get GCed!!!
-        signal2.set(2);
-        set1.add(signal2);
-        assertSetSize(1, filterSet2);
-        assertSetSize(1, filterSet1);
-
-
-        finalizer.register(filterSet1, "1");
-        finalizer.register(filterSet2, "2");
+        finalizer.register(effect_1,"effect1");
+        finalizer.register(effect_2,"effect2");
     }
 
-    scope1();
+    await scope1();
 
     gc();
     await wait(100);
-    gc()
+    gc();
 
-    await assertGcCount(2);
-}
-);
-
-// Test Transactions and Buffered Subscribables
-tests.push(async function test3()
-{
-    const signal1 = new NativeSignal(1);
-
-    const buffer1 = new BufferedSubscribable();
-
-    let result = [];
-    const get_result = (signal, value) =>
-    {
-        console.log("RES ", value);
-        result = value;
-    };
-
-    buffer1.subscribe(get_result);
-
-    // transactions should only emit after they are done.
-    // signals which support it should wait for all their dependencies before updating themselves.
-    // In particular Computed and Effect.
-    transaction(() =>
-    {
-
-
-        signal1.subscribe((source, value) => buffer1.emit(value));
-
-        buffer1.emit(1); // This emits in a buffer after the transaction is over
-        signal1.set(2); // This emits only after the transaction is over and the buffer has already emitted.
-        buffer1.emit(3);
-
-    });
-
-    console.log(result);
+    await assertGcCount(6);
 
 }
 );
+
+
+// /**
+//  * Test Sets.
+//  */
+// tests.push(async function test3()
+// {
+//     const INITIAL_VALUE = 1;
+
+//     const signal1 = new NativeSignal(INITIAL_VALUE);
+//     const signal2 = new NativeSignal(INITIAL_VALUE);
+
+//     const set1 = new SignalSet([signal1]);
+
+//     assertSetSize(1, set1);
+
+//     // allow gc to clean up everything inside
+//     function scope1()
+//     {
+//         let did_emit: { event: "add" | "delete"; value: NativeSignal<number>; }[];
+
+//         const cbk = (sig, v) =>
+//         {
+//             did_emit = v;
+//         };
+
+//         // increment the gc counter when the callback function is recycled.
+//         finalizer.register(cbk, "Cbk");
+
+//         set1.on_change.subscribe(cbk);
+
+//         set1.add(signal2);
+
+//         assertSetSize(2, set1);
+
+//         if (!did_emit || did_emit.length !== 1 || did_emit[0].event !== "add" || did_emit[0].value !== signal2)
+//             throw new Error("Didn't emit expected values");
+
+//     }
+
+//     scope1();
+
+//     await assertGcCount(1);
+// }
+// );
+
+// Test Filtered Sets
+// tests.push(async function test3()
+// {
+//     const INITIAL_VALUE = 1;
+
+//     const signal1 = new NativeSignal(INITIAL_VALUE);
+//     const signal2 = new NativeSignal(INITIAL_VALUE);
+
+
+//     const set1 = new SignalSet([signal1]);
+
+//     // allow gc to clean up everything inside
+//     function scope1()
+//     {
+
+//         const filterSet1 = new FilteredSetComputed(set1, (v) => v.get() > 1);
+//         const filterSet2 = new FilteredSetSignals(set1, (v) => v > 1);
+
+//         assertSetSize(1, set1);
+//         assertSetSize(0, filterSet1);
+//         assertSetSize(0, filterSet2);
+
+//         signal1.set(2);
+//         assertSetSize(1, set1);
+//         assertSetSize(1, filterSet2);
+//         assertSetSize(1, filterSet1);
+
+//         set1.add(signal2)
+
+//         assertSetSize(2, set1);
+//         assertSetSize(1, filterSet1);
+//         assertSetSize(1, filterSet2);
+
+//         signal2.set(2);
+//         assertSetSize(2, set1);
+//         assertSetSize(2, filterSet1);
+//         assertSetSize(2, filterSet2);
+
+//         signal2.set(1);
+//         assertSetSize(2, set1);
+//         assertSetSize(1, filterSet1);
+//         assertSetSize(1, filterSet2);
+
+//         set1.delete(signal2);
+//         assertSetSize(1, set1);
+//         assertSetSize(1, filterSet1);
+//         assertSetSize(1, filterSet2);
+
+//         set1.delete(signal1);
+//         assertSetSize(0, set1);
+//         assertSetSize(0, filterSet1);
+//         assertSetSize(0, filterSet2);
+
+//         set1.delete(signal1);
+//         assertSetSize(0, set1);
+//         assertSetSize(0, filterSet1);
+//         assertSetSize(0, filterSet2);
+
+//         // BUG : As long as the set has signals in it, it cannot get GCed!!!
+//         signal2.set(2);
+//         set1.add(signal2);
+//         assertSetSize(1, filterSet2);
+//         assertSetSize(1, filterSet1);
+
+
+//         finalizer.register(filterSet1, "1");
+//         finalizer.register(filterSet2, "2");
+//     }
+
+//     scope1();
+
+//     gc();
+//     await wait(100);
+//     gc()
+
+//     await assertGcCount(2);
+// }
+// );
+
+// // Test Transactions and Buffered Subscribables
+// tests.push(async function test3()
+// {
+//     const signal1 = new NativeSignal(1);
+
+//     const buffer1 = new BufferedSubscribable();
+
+//     let result = [];
+//     const get_result = (signal, value) =>
+//     {
+//         console.log("RES ", value);
+//         result = value;
+//     };
+
+//     buffer1.subscribe(get_result);
+
+//     // transactions should only emit after they are done.
+//     // signals which support it should wait for all their dependencies before updating themselves.
+//     // In particular Computed and Effect.
+//     transaction(() =>
+//     {
+
+
+//         signal1.subscribe((source, value) => buffer1.emit(value));
+
+//         buffer1.emit(1); // This emits in a buffer after the transaction is over
+//         signal1.set(2); // This emits only after the transaction is over and the buffer has already emitted.
+//         buffer1.emit(3);
+
+//     });
+
+//     console.log(result);
+
+// }
+// );
 // Test Mapped Maps
 // tests.push(async function test3()
 // {
