@@ -57,7 +57,7 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
     //     return this;
     // }
 
-    on_constituent_signal_change = () =>
+    on_constituent_signal_change = (signal, value) =>
     {
         // Don't call _get() unless actual subscribers exist
         if (this.subscribers)
@@ -73,8 +73,18 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
 
     get()
     {
+        // If this computed type is called inside of another computed type:
+        // store the parent listener and replace it with its own for a bit.
+        if (Subscribable.global_listeners)
+        {
+            Subscribable.global_listeners.push(this);
+        }
+
         // if it's dirty, or if its in a transaction which delayed the dirty signal, recalculate the value
-        if (this._dirty || Subscribable.global_transaction_depth && Subscribable.global_transactions.has(this.on_constituent_signal_change))
+        if (
+            this._dirty || 
+            Subscribable.global_transaction_depth && Subscribable.global_transactions.has(this)
+        )
         {
             console.log("Manual")
             return this._get();
@@ -90,14 +100,10 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
     {
         this._dirty = false;
 
-        // If this computed type is called inside of another computed type:
-        // store the parent listener and replace it with its own for a bit.
+        
         let parent_listeners = Subscribable.global_listeners;
-        if (Subscribable.global_listeners)
-        {
-            parent_listeners.push(this);
-        }
         const global_listeners = Subscribable.global_listeners = <Subscribable<any>[]>[];
+        Subscribable.global_listeners = global_listeners;
 
         let value = this.fn();
 
@@ -106,7 +112,6 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
         // let news = global_listeners.difference(this.subscribed_to)
 
         let unique_subscription: Subscribable<any>[] = [];
-        let pass = uid2();
 
         const set = new Set(this.subscribed_to);
         const new_set = new Set(global_listeners);

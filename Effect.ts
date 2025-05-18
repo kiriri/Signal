@@ -9,6 +9,7 @@ import { Subscribable } from "./Subscribable";
 export class Effect<Inputs extends Record<string, Subscribable<any>>, T> extends Subscribable<T>
 {
     _source_cache: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never> = {} as any;
+    _updaters: Record<keyof Inputs, Function> = {} as any;
 
     /**
      * Creates a new Computed signal with a function that computes its value.
@@ -27,14 +28,19 @@ export class Effect<Inputs extends Record<string, Subscribable<any>>, T> extends
         // this._source_cache = Object.fromEntries(Object.entries(sources).map(v => ([v[0], null]))) as any;
         for (let key in sources)
         {
-            sources[key].subscribe(a.bind(this,key,fn), standalone);
+            let update_key_function = (signal,value)=>{
+                this._source_cache[key] = value;
+                this.emit(fn(this._source_cache));
+            };
+            this._updaters[key] = update_key_function;
+            sources[key].subscribe(update_key_function, standalone);
             // Not all subscribables have a value at all times.
             this._source_cache[key] = (sources[key] as any)["get"]?.() ?? null;
         }
     }
 }
 
-const subscribe = function subscribe(this:{subscribers:Set<any>},fn: (value: any) => any)
+const subscribe = function subscribe(this:{subscribers:Set<any>},fn: (source:any,value: any) => any)
 {
     if (!this.subscribers)
         this.subscribers = new Set();
@@ -48,7 +54,7 @@ const subscribe = function subscribe(this:{subscribers:Set<any>},fn: (value: any
  * Unsubscribes a function from being called when the value of this Subscribable changes.
  * @param fn - The function to unsubscribe.
  */
-const unsubscribe = function unsubscribe(this:{subscribers:Set<any>},fn: (value: any) => any)
+const unsubscribe = function unsubscribe(this:{subscribers:Set<any>},fn: (source:any, value: any) => any)
 {
     if (this.subscribers)
         this.subscribers.delete(fn);
@@ -59,7 +65,7 @@ const unsubscribe = function unsubscribe(this:{subscribers:Set<any>},fn: (value:
 const emit = function emit(this:{subscribers:Set<any>},value:any)
 {
     if (this.subscribers)
-        this.subscribers.forEach(subscriber =>subscriber(value))
+        this.subscribers.forEach(subscriber =>subscriber(this,value))
 };
 
 // export function effect<Inputs extends Record<string, Subscribable<any>>, T>
@@ -106,26 +112,26 @@ function a<T>(this: any, key:string ,fn : any, value : T)
     this.emit(fn(this._source_cache));
 }
 
-export function effect<Inputs extends Record<string, Subscribable<any>>, T>
-    (
-        sources: Inputs,
-        fn: (v: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>) => T,
-        standalone:boolean = true
-    )
-{
-    const res = {
-        _source_cache: {}
+// export function effect<Inputs extends Record<string, Subscribable<any>>, T>
+//     (
+//         sources: Inputs,
+//         fn: (v: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>) => T,
+//         standalone:boolean = true
+//     )
+// {
+//     const res = {
+//         _source_cache: {}
 
-    } as any as Subscribable<T> & { _source_cache: any };
+//     } as any as Subscribable<T> & { _source_cache: any };
 
-    res["emit"] = emit.bind(res as any);
-    res["subscribe"] = subscribe.bind(res as any) as any;
-    res["unsubscribe"] = unsubscribe.bind(res as any) as any;
+//     res["emit"] = emit.bind(res as any);
+//     res["subscribe"] = subscribe.bind(res as any) as any;
+//     res["unsubscribe"] = unsubscribe.bind(res as any) as any;
 
-    for (let key in sources)
-    {
-        sources[key].subscribe(a.bind(res,key,fn), standalone)
-    }
+//     for (let key in sources)
+//     {
+//         sources[key].subscribe(a.bind(res,key,fn), standalone)
+//     }
 
-    return res;
-}
+//     return res;
+// }

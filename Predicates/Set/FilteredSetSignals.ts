@@ -8,7 +8,8 @@ export class FilteredSetSignals<INPUT extends StatefulSubscribable<any>> extends
 
     constructor(
         public readonly _set: SignalSet<INPUT>,
-        public readonly predicate: (v: INPUT extends StatefulSubscribable<infer I> ? I : never) => boolean
+        public readonly predicate: (v: INPUT extends StatefulSubscribable<infer I> ? I : never) => boolean,
+        test = false
     )
     {
         super();
@@ -16,7 +17,7 @@ export class FilteredSetSignals<INPUT extends StatefulSubscribable<any>> extends
         const values = [..._set.get().values()] as INPUT[];
 
 
-        _set.on_change.subscribe((values: { value: INPUT, event: "add" | "delete" }[]) =>
+        _set.on_change.subscribe((_,values: { value: INPUT, event: "add" | "delete" }[]) =>
         {
             for (let { value, event } of values)
             {
@@ -46,7 +47,7 @@ export class FilteredSetSignals<INPUT extends StatefulSubscribable<any>> extends
         return super.add(value);
     }
 
-    on_update(signal: INPUT, value: INPUT extends StatefulSubscribable<infer I> ? I : never)
+    on_update = (signal: INPUT, value: INPUT extends StatefulSubscribable<infer I> ? I : never) =>
     {
         // Undefined signals === Value has been deleted from the source. Use null otherwise!
         const shouldInclude = value === undefined || this.predicate(value);
@@ -72,9 +73,10 @@ export class FilteredSetSignals<INPUT extends StatefulSubscribable<any>> extends
             this.add(target);
         }
 
-        let updater = this.on_update.bind(this, target);
-        target.subscribe(updater, false);
-        (target as any)[this.uid2] = updater;
+        // How do we store the updater?
+        let updater = this.on_update;
+        target.subscribe(updater, true);
+        // (target as any)[this.uid2] = updater;
     }
 
     unlisten(target: INPUT)
@@ -85,26 +87,35 @@ export class FilteredSetSignals<INPUT extends StatefulSubscribable<any>> extends
             this.delete(target);
         }
 
-        let updater = (target as any)[this.uid2];
-        target.unsubscribe(updater);
+        // let updater = (target as any)[this.uid2];
+        target.unsubscribe(this.on_update);
 
-        delete (target as any)[this.uid2];
+        // delete (target as any)[this.uid2];
     }
 }
 
 import { Computed } from "../../Computed";
+
+const deleteSet = new FinalizationRegistry((set)=>{
+    console.log("Set deleted")
+})
 
 export class FilteredSetComputed<INPUT extends StatefulSubscribable<any>> extends SignalSet<INPUT>
 {
     // readonly uid = crypto.randomUUID().replace("-", "");
     initialized = false;
 
+    __subscribers = new Map<StatefulSubscribable<any>,any>();
+
     constructor(
         public readonly _set: SignalSet<INPUT>,
-        public readonly predicate: (v: INPUT) => boolean
+        public readonly predicate: (v: INPUT) => boolean,
+        public test = false
     )
     {
         super();
+
+        deleteSet.register(this,"");
     }
 
     // Delay initialization until it's actually required. This helps with setting up complex signal complexes.
@@ -126,14 +137,17 @@ export class FilteredSetComputed<INPUT extends StatefulSubscribable<any>> extend
             this.listen(values[i]);
         }
 
-        this._set.on_change.subscribe((values: { value: INPUT, event: "add" | "delete" }[]) =>
+        this._set.on_change.subscribe((_,values: { value: INPUT, event: "add" | "delete" }[]) =>
         {
+            if(this.test)
+                console.log("Running Test ", values)
             for (let { value, event } of values)
             {
                 if (event === "add")
                 {
                     this.listen(value);
-                } else if (event === "delete")
+                } 
+                else if (event === "delete")
                 {
                     this.unlisten(value);
                 }
@@ -150,11 +164,14 @@ export class FilteredSetComputed<INPUT extends StatefulSubscribable<any>> extend
         return super.emit(value);
     }
 
+    
+
     listen(target: INPUT)
     {
-        const mappedSignal = new Computed<boolean>(this.predicate.bind(undefined, target));
+        // console.log("LISTEN")
+        const predicateSignal = new Computed<boolean>(this.predicate.bind(undefined,  target));
 
-        const subscriber = (is_true: boolean) =>
+        const on_predicate_change = (source:Subscribable<boolean>,is_true: boolean) =>
         {
             if (is_true)
             {
@@ -165,12 +182,19 @@ export class FilteredSetComputed<INPUT extends StatefulSubscribable<any>> extend
                 this.delete(target);
             }
         };
-        mappedSignal.subscribe(subscriber, false);
+        // When the predicate changes, check if add/delete needs to occur.
+        // This does not unlisten!
+        predicateSignal.subscribe(on_predicate_change, null);
+
+        // this.__subscribers2.set(target,mappedSignal);
+        this.__subscribers.set(target,[on_predicate_change,predicateSignal]);
+        // subscriber["computed"] = mappedSignal;
 
         // Track the target for future updates
-        (target as any)[this.uid] = [mappedSignal, subscriber];
+        // (target as any)[this.uid] = [mappedSignal, subscriber];
 
-        subscriber(this.predicate(target));
+        // Check right away if the item should be included or not.
+        on_predicate_change(undefined, predicateSignal.get());
     }
 
     unlisten(target: INPUT)
@@ -181,9 +205,14 @@ export class FilteredSetComputed<INPUT extends StatefulSubscribable<any>> extend
             this.delete(target);
         }
 
-        (target as any)[this.uid][0].unsubscribe((target as any)[this.uid][1])
+        this.__subscribers.delete(target);
+        // this.__subscribers2.delete(target);
+
+        console.log("UNLISTENED")
+
+        // (target as any)[this.uid][0].unsubscribe((target as any)[this.uid][1])
 
         // Clean up tracking
-        delete (target as any)[this.uid];
+        // delete (target as any)[this.uid];
     }
 }

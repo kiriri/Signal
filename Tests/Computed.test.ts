@@ -1,5 +1,5 @@
-import { Computed } from '../Computed'; // Path to your Computed class file
-import { NativeSignal } from '../Signal'; // Assuming you have a Signal class
+import { Computed } from '../Computed'; 
+import { NativeSignal } from '../Signal';
 import {expect, jest, test, describe, it} from '@jest/globals';
 
 describe('Computed Signal', () => {

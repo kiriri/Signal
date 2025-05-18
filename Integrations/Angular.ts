@@ -17,7 +17,7 @@ export function AngularSignal<T>(subscribable:Subscribable<T>) : AngularSignal<T
     const result = signal<T>((subscribable as StatefulSubscribable<T>).get?.() ?? null,{
         equal:()=>false
     }); 
-    subscribable.subscribe(v=>{
+    subscribable.subscribe((signal,v)=>{
         result.set(v);
     });
 

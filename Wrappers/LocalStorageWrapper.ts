@@ -3,7 +3,7 @@ import { StatefulSubscribable } from "../Subscribable";
 
 export function local<T extends NativeSignal<any> | StatefulSubscribable<any>>(key:string, signal: T) : T
 {
-    signal.subscribe((v)=>{
+    signal.subscribe((s,v)=>{
         localStorage.setItem(key, JSON.stringify(v));
     },false);
 

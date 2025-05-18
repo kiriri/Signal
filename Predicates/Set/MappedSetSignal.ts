@@ -23,7 +23,7 @@ export class MappedSetSignals<
             this.listen(values[i]);
         }
 
-        _set.on_change.subscribe((values: { value: StatefulSubscribable<INPUT>, event: "add" | "delete" }[]) =>
+        _set.on_change.subscribe((_,values: { value: StatefulSubscribable<INPUT>, event: "add" | "delete" }[]) =>
         {
             for (let { value, event } of values)
             {
@@ -38,7 +38,7 @@ export class MappedSetSignals<
         });
     }
 
-    on_update(target: StatefulSubscribable<INPUT>, value: INPUT)
+    on_update = (target: StatefulSubscribable<INPUT>, value: INPUT) =>
     {
         const mappedValue = this.mapper(value);
         const mappedSignal = (target as any)[this.uid] as NativeSignal<OUTPUT>;
@@ -55,9 +55,7 @@ export class MappedSetSignals<
 
         this.add(mappedSignal);
 
-        let updater = this.on_update.bind(this, target);
-        target.subscribe(updater, false);
-        (target as any)[this.uid2] = updater;
+        target.subscribe(this.on_update, true);
     }
 
     unlisten(target: StatefulSubscribable<INPUT>)
@@ -65,8 +63,7 @@ export class MappedSetSignals<
         const mappedSignal = (target as any)[this.uid] as StatefulSubscribable<OUTPUT>;
         this.delete(mappedSignal);
 
-        let updater = (target as any)[this.uid2];
-        target.unsubscribe(updater);
+        target.unsubscribe(this.on_update);
 
         delete (target as any)[this.uid];
         delete (target as any)[this.uid2];
@@ -97,7 +94,7 @@ export class MappedSetComputed<
             this.listen(values[i]);
         }
 
-        _set.on_change.subscribe((values: { value: StatefulSubscribable<INPUT>, event: "add" | "delete" }[]) =>
+        _set.on_change.subscribe((_,values: { value: StatefulSubscribable<INPUT>, event: "add" | "delete" }[]) =>
         {
             for (let { value, event } of values)
             {

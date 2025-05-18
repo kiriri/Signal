@@ -51,13 +51,13 @@ export class Subscribable<T>
     // While any transaction is active, no events are emitted.
     // This is a list of all the emitted functions and their latest value.
     // When the last transaction closes, all remaining functions will be notified.
-    static readonly global_transactions: Map<Function,any> = new Map<Function,any>();
+    static readonly global_transactions: Map<Subscribable<any>,any> = new Map();
     // How many transactions are currently open. Ticks up/down when entering/exiting transaction(...)
     static global_transaction_depth : number = 0;
 
     // These functions want to be called when this Subscribable's value changes.
     // We store them as WeakRefs so they get GCed when nobody uses the object anymore.
-    subscribers: Set<WeakRef<(value: T) => any>> | undefined;
+    subscribers: Set<WeakRef<(source:Subscribable<T>, value: T) => any>> | undefined;
 
     readonly uid = uid();
 
@@ -66,7 +66,7 @@ export class Subscribable<T>
      * @param fn - The function to subscribe.
      * @param function_owns_signal - If true, this subscribable will not GC while the function is being held. If false, the function will not GC while the signal is held.
      */
-    subscribe(fn: (value: T) => any|void, function_owns_signal : boolean|null = false)
+    subscribe(fn: (source:Subscribable<T>, value: T) => any|void, function_owns_signal : boolean|null = false)
     {
         if(typeof fn !== "function")
             throw new Error("NOT A FUNCTION!")
@@ -99,7 +99,7 @@ export class Subscribable<T>
      * Unsubscribes a function from being called when the value of this Subscribable changes.
      * @param fn - The function to unsubscribe.
      */
-    unsubscribe(fn: (value: T) => any)
+    unsubscribe(fn: (source:Subscribable<T>, value: T) => any)
     {
         if (this.subscribers)
         {
@@ -121,27 +121,23 @@ export class Subscribable<T>
     {
         if (this.subscribers)
         {
-            const values = this.subscribers.values();
             if(Subscribable.global_transaction_depth)
             {
-                for(const ref of values)
-                {
-                    const deref = ref.deref();
-                    if(!deref)
-                        this.subscribers.delete(ref);
-                    else
-                        Subscribable.global_transactions.set(deref!,value);
-                }    
+                Subscribable.global_transactions.set(this,value);
             }
             else
             {
+                const values = this.subscribers.values();
+
                 for(const ref of values)
                 {
                     const deref = ref.deref();
                     if(!deref)
                         this.subscribers.delete(ref);
                     else
-                        deref(value)
+                    {
+                        deref(this, value)
+                    }
                 }
             }
         }  
@@ -150,7 +146,7 @@ export class Subscribable<T>
     promise():Promise<T>
     {
         let resolve: (arg0: T) => void;
-        const subscriber = (v:T)=>{
+        const subscriber = (source:Subscribable<T>,v:T)=>{
             this.unsubscribe(subscriber);
             resolve(v);
         }
@@ -175,14 +171,14 @@ export function transaction(fn:Function)
         
         while(true)
         {
-            let entries = [...(Subscribable.global_transactions as Map<Function,any>).entries()];
+            let entries = [...(Subscribable.global_transactions as Map<Subscribable<any>,any>).entries()];
             if(entries.length === 0)
                 break;
             Subscribable.global_transactions.clear();
 
-            for(const [fn,arg] of entries)
+            for(const [signal,arg] of entries)
             {
-                fn(arg);
+                signal.emit(arg);
             }
         }
 

@@ -61,11 +61,13 @@ export class SignalMap<K, V> extends Subscribable<Map<K, V>> implements Stateful
 
             this._signals.set(key, result = new NativeSignal<V | undefined>(value));
 
-            result.subscribe(v =>
+            result.subscribe((_,v) =>
             {
-                console.log("Reference changed ", v);
+                console.log("Reference changed ", _,v);
                 if (v === undefined)
                 {
+                    console.trace();
+                    throw new Error();
                     this.delete(key);
                 }
                 else

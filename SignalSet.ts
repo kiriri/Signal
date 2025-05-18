@@ -97,7 +97,7 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
 
         const signal = new NativeSignal(counter);
 
-        this.on_change.subscribe((values) =>
+        this.on_change.subscribe((_,values) =>
         {
             for (let { value, event } of values)
             {
@@ -145,7 +145,7 @@ export function SignalSetOperation(set: SignalSet<number> | SignalSet<StatefulSu
         // the last stored value for each subscribable.
         const _cache = new Map<StatefulSubscribable<number>, number>();
         // a list of subscription functions for use in unsubscribing.
-        const _cached_subscribers = new Map<StatefulSubscribable<number>, (v: number) => any>();
+        const _cached_subscribers = new Map<StatefulSubscribable<number>, (source:Subscribable<number>,v: number) => any>();
 
         const result = new NativeSignal(0);
 
@@ -162,7 +162,7 @@ export function SignalSetOperation(set: SignalSet<number> | SignalSet<StatefulSu
         const listen_to_item = operation === "sum" ?
             function listen_to_item_sum(item: StatefulSubscribable<number>)
             {
-                function on_change(new_value: number)
+                function on_change(source:Subscribable<number>,new_value: number)
                 {
                     const old_value = _cache.get(item) ?? 1;
 
@@ -179,7 +179,7 @@ export function SignalSetOperation(set: SignalSet<number> | SignalSet<StatefulSu
             } :
             function listen_to_item_product(item: StatefulSubscribable<number>)
             {
-                function on_change(new_value: number)
+                function on_change(source:Subscribable<number>,new_value: number)
                 {
                     const old_value = _cache.get(item) ?? 1;
 
@@ -196,7 +196,7 @@ export function SignalSetOperation(set: SignalSet<number> | SignalSet<StatefulSu
             }
 
         const handle_set_change = operation === "sum" ?
-            function on_add_sum(values: { value: StatefulSubscribable<number>, event: "add" | "delete" }[])
+            function on_add_sum(source:Subscribable<{ value: StatefulSubscribable<number>, event: "add" | "delete" }[]>, values: { value: StatefulSubscribable<number>, event: "add" | "delete" }[])
             {
                 for (let { value, event } of values)
                 {
@@ -212,7 +212,7 @@ export function SignalSetOperation(set: SignalSet<number> | SignalSet<StatefulSu
                     }
                 }
             } :
-            function on_add_product(values: { value: StatefulSubscribable<number>, event: "add" | "delete" }[])
+            function on_add_product(source:Subscribable<{ value: StatefulSubscribable<number>, event: "add" | "delete" }[]>,values: { value: StatefulSubscribable<number>, event: "add" | "delete" }[])
             {
                 for (let { value, event } of values)
                 {

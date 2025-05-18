@@ -1,0 +1,14 @@
+{
+    "compileOnSave": false,
+    "compilerOptions": {
+      "baseUrl": "./",
+      "outDir": "./dist/out-tsc",
+      "forceConsistentCasingInFileNames": true,
+      "strict": false,
+      "noImplicitOverride": true,
+      "moduleResolution": "nodenext",
+      "isolatedModules": false,
+      "module": "NodeNext",
+      "target": "ESNext",
+    }
+  }

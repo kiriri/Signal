@@ -31,7 +31,7 @@ export class CountSetSignals<
         if(values.length > 0)
             this.emit(this._value);
 
-        _set.on_change.subscribe((values: { value: T, event: "add" | "delete" }[]) =>
+        _set.on_change.subscribe((_,values: { value: T, event: "add" | "delete" }[]) =>
         {
             for (let { value, event } of values)
             {
@@ -50,7 +50,7 @@ export class CountSetSignals<
     }
 
 
-    on_update(target: StatefulSubscribable<G>, value: G)
+    on_update = (target: StatefulSubscribable<G>, value: G)=>
     {
         const boolish = this.predicate(value);
         if (boolish && !(target as any)[this.uid2])
@@ -74,9 +74,9 @@ export class CountSetSignals<
             ++this._value;
         }
 
-        let updater = this.on_update.bind(this,target);
-        target.subscribe(updater, false);
-        (target as any)[this.uid] = updater;
+        // let updater = this.on_update.bind(this,target);
+        target.subscribe(this.on_update, true);
+        // (target as any)[this.uid] = updater;
         // this.subscribers_map.set(target, updater);
     }
 
@@ -88,9 +88,9 @@ export class CountSetSignals<
             --this._value
         }
 
-        let updater = (target as any)[this.uid]//this.subscribers_map.get(target)!;
+        // let updater = (target as any)[this.uid]//this.subscribers_map.get(target)!;
         // this.subscribers_map.delete(target);
-        target.unsubscribe(updater);
+        target.unsubscribe(this.on_update);
     }
 }
 

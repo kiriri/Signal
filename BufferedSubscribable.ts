@@ -1,10 +1,15 @@
 import { Subscribable } from "./Subscribable";
 
+const BUFFER_NULL = {};
+
 /**
  * Represents a subscribable value that can be observed for changes.
  * Eg an output can be wrapped inside a buffered subscribable to always 
  * store the last emitted value, even though outputs themselves are not
  * stateful.
+ * That is why when used in a transaction, BufferedSubscribable
+ * will emit the history of all changes during the 
+ * transaction right after.
  */
 export class BufferedSubscribable<T> extends Subscribable<T[]>
 {
@@ -25,51 +30,61 @@ export class BufferedSubscribable<T> extends Subscribable<T[]>
             if(Subscribable.global_transaction_depth)
             {
                 this.buffer.push(value);
-                // If this is the first buffered item, add all subscribers to the list
-                // of functions to emit after the transaction is done.
-                // We only need to do this once per transaction, because buffer remains
-                // constant.
-                if(this.buffer.length === 1)
+                if(Subscribable.global_transaction_depth)
                 {
-                    for(const subscriber of this.subscribers)
-                    {
-                        const deref = subscriber.deref();
-                        if(!deref)
-                            this.subscribers.delete(subscriber);
-                        else
-                            Subscribable.global_transactions.set(deref!,this.buffer);
-                    }
-
-                    // Reset buffer after transaction is done.
-                    Subscribable.global_transactions.set(this.reset_buffer,null)
+                    Subscribable.global_transactions.set(this,BUFFER_NULL);
                 }
             }
             else
             {
+                let buffer = this.buffer;
+                // If the buffer exists, ignore the current value.
+                if(buffer.length > 0)
+                {
+                    buffer = [...buffer];
+
+                    // sanity check
+                    if(value !== BUFFER_NULL)
+                    {
+                        // Edge case : subscriber triggered before BUFFER_NULL
+
+                        buffer.push(value);
+                        
+                        // throw new Error("Fatal error. Expected null, got " + value);
+                    }
+                    
+                    this.buffer.length = 0;
+                }
+                else
+                {
+                    // Edge case, a subscribe call has already triggered this.
+                    if(BUFFER_NULL === value)
+                        return;
+                    buffer = [value];
+                }
+                
                 for(const ref of this.subscribers)
                 {
                     const deref = ref.deref();
                     if(!deref)
                         this.subscribers.delete(ref);
                     else
-                        deref([value])
+                        deref(this as any, buffer)
                 }
             }
         }
     }
 
-    reset_buffer = ()=>{this.buffer.length = 0};
-
-    override subscribe(fn: (value: T[]) => any | void): this
+    override subscribe(fn: (source:Subscribable<T[]>, value: T[]) => any | void): this
     {
         super.subscribe(fn, true);
 
         // If at least one item exists in buffer, tell the new subscription as soon
         // as the transaction ends.
-        if(Subscribable.global_transaction_depth && this.buffer.length)
-        {
-            Subscribable.global_transactions.set(fn,this.buffer);
-        }
+        // if(Subscribable.global_transaction_depth && this.buffer.length)
+        // {
+        //     Subscribable.global_transactions.set(this,this.buffer);
+        // }
         
         return this;
     }

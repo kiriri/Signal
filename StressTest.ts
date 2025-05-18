@@ -16,7 +16,7 @@ function stressTest() {
     // Subscribe a large number of subscribers to each signal
     for (const signal of signals) {
         for (let j = 0; j < numSubscribersPerSignal; j++) {
-            signal.subscribe((value: number) => {
+            signal.subscribe((_,value: number) => {
                 // Do nothing, just simulate a subscriber
             }, false);
         }
