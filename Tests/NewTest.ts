@@ -8,6 +8,7 @@ import { SignalMap } from '../SignalMap';
 import { SignalSet } from '../SignalSet';
 import { StatefulSubscribable, Subscribable } from '../_Signal2/Subscribable2';
 import { Effect } from '../_Signal2/Effect';
+import { Interval } from '../_Signal2/Interval2';
 
 const finalized: any[] = [];
 const finalizer = new FinalizationRegistry((v) =>
@@ -132,6 +133,17 @@ tests.push(async function test2()
 tests.push(async function test3()
 {
     const INITIAL_VALUE = 1;
+
+    const signal0 = new NativeSignal(0);
+    const computed0 = new Computed(()=>{
+        return signal0.get();
+    })
+
+    signal0.set(0);
+    signal0.set(1);
+    signal0.set(2);
+
+    assertValue(2,computed0,signal0)
 
     const signal1 = new NativeSignal(INITIAL_VALUE);
     const signal2 = new NativeSignal(INITIAL_VALUE);
@@ -329,9 +341,35 @@ tests.push(async function test3()
     gc();
 
     await assertGcCount(6);
-
 }
 );
+
+tests.push(async()=>{
+    
+    async function scope1()
+    {
+        let interval = Interval(10);
+        finalizer.register(interval,"Interval");
+
+        let computed1 = new Computed(()=>{
+            return interval.get();
+        });
+
+        await wait(109);
+
+        console.log(interval.get(), computed1.get());
+
+        assertValue(10,computed1);
+    };
+
+    await scope1();
+
+    gc();
+    await wait(100);
+    gc();
+
+    await assertGcCount(1);
+})
 
 
 // /**

@@ -1,5 +1,5 @@
-import { NativeSignal } from "../Signal";
-import { Subscribable } from "../Subscribable";
+import { NativeSignal } from "./Signal2";
+import { Subscribable } from "./Subscribable2";
 
 let intervals = new Map<number, WeakRef<NativeSignal<number>>>();
 
@@ -23,7 +23,7 @@ export function Interval(delta: number) : NativeSignal<number>
         const intervalId = setInterval(()=>{
             // Don't reference the signal directly, else it won't be able to get GCed because setInterval holds a reference to a function which references the signal. (Which means its permanently pinned in global space).
             const signal = intervals.get(delta)?.deref();
-            signal.set(signal._value+1);
+            signal?.set(signal._value+1);
         }, delta);
 
         // Register the interval ID for cleanup when the signal is garbage collected
