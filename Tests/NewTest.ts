@@ -1,14 +1,14 @@
 // npx tsx --expose-gc ./Tests/NewTest.ts
 
 import { BufferedSubscribable } from '../BufferedSubscribable';
-import { Computed } from '../_Signal2/Computed2';
+import { Computed } from '../_Signal2/Core/Computed';
 import { FilteredSetComputed, FilteredSetSignals } from '../Predicates/Set/FilteredSetSignals';
-import { NativeSignal } from '../_Signal2/Signal2';
-import { SignalMap } from '../SignalMap';
-import { SignalSet } from '../SignalSet';
-import { StatefulSubscribable, Subscribable } from '../_Signal2/Subscribable2';
-import { Effect } from '../_Signal2/Effect';
-import { Interval } from '../_Signal2/Interval2';
+import { NativeSignal } from '../_Signal2/Core/Signal';
+import { SignalMap } from '../_Signal2/Collections/SignalMap';
+import { SignalSet } from '../_Signal2/Collections/SignalSet';
+import { StatefulSubscribable, Subscribable } from '../_Signal2/Core/Subscribable';
+import { Effect } from '../_Signal2/Sinks/Effect';
+import { Interval } from '../_Signal2/Events/Interval';
 
 const finalized: any[] = [];
 const finalizer = new FinalizationRegistry((v) =>
@@ -33,7 +33,7 @@ function assertValue<T>(value: T, ...signals: StatefulSubscribable<T>[])
     }
 }
 
-function assertSetSize(size: number, set: SignalSet<any>)
+function assertSetSize(size: number, set: SignalSet<any> | SignalMap<any,any>)
 {
     if (set.get().size !== size)
         throw new Error("Size mismatch " + size + ' vs ' + set.get().size);
@@ -375,46 +375,146 @@ tests.push(async()=>{
 // /**
 //  * Test Sets.
 //  */
-// tests.push(async function test3()
-// {
-//     const INITIAL_VALUE = 1;
+tests.push(async function test3()
+{
 
-//     const signal1 = new NativeSignal(INITIAL_VALUE);
-//     const signal2 = new NativeSignal(INITIAL_VALUE);
+    const signal1 = new NativeSignal(1);
+    const signal2 = new NativeSignal(2);
 
-//     const set1 = new SignalSet([signal1]);
+    signal1["name"] = "1";
+    signal2["name"] = "2";
 
-//     assertSetSize(1, set1);
+    const set1 = new SignalSet([signal1]);
 
-//     // allow gc to clean up everything inside
-//     function scope1()
-//     {
-//         let did_emit: { event: "add" | "delete"; value: NativeSignal<number>; }[];
+    assertSetSize(1, set1);
 
-//         const cbk = (sig, v) =>
-//         {
-//             did_emit = v;
-//         };
+    // allow gc to clean up everything inside
+    async function scope1()
+    {
+        let did_emit: { event: "add" | "delete"; value: NativeSignal<number>; }[];
 
-//         // increment the gc counter when the callback function is recycled.
-//         finalizer.register(cbk, "Cbk");
+        const cbk = (sig, v) =>
+        {
+            did_emit = v;
+        };
 
-//         set1.on_change.subscribe(cbk);
+        // increment the gc counter when the callback function is recycled.
+        finalizer.register(cbk, "Cbk");
 
-//         set1.add(signal2);
+        set1.on_change.subscribe(cbk);
 
-//         assertSetSize(2, set1);
+        set1.add(signal2);
 
-//         if (!did_emit || did_emit.length !== 1 || did_emit[0].event !== "add" || did_emit[0].value !== signal2)
-//             throw new Error("Didn't emit expected values");
+        assertSetSize(2, set1);
 
-//     }
+        set1.add(signal2);
 
-//     scope1();
+        assertSetSize(2, set1);
 
-//     await assertGcCount(1);
-// }
-// );
+
+        set1.delete(signal1);
+
+        assertSetSize(1, set1);
+
+        set1.delete(signal1);
+
+        assertSetSize(1, set1);
+
+        await wait(0);
+
+        if (
+            !did_emit 
+            || did_emit.length !== 2 
+            || did_emit[0].event !== "add" 
+            || did_emit[0].value !== signal2
+            || did_emit[1].event !== "delete" 
+            || did_emit[1].value !== signal1
+        )
+        {
+            console.log(did_emit);
+            throw new Error("Didn't emit expected values");
+        }
+
+    }
+
+    await scope1();
+
+    await assertGcCount(1);
+}
+);
+
+// /**
+//  * Test Maps.
+//  */
+tests.push(async function test3()
+{
+
+    const signal1 = new NativeSignal(1);
+    const signal2 = new NativeSignal(2);
+
+    signal1["name"] = "1";
+    signal2["name"] = "2";
+
+    const map1 = new SignalMap([["1",signal1]]);
+
+    assertSetSize(1, map1);
+
+    // allow gc to clean up everything inside
+    async function scope1()
+    {
+        let did_emit: { event: "add" | "delete"; key:string, value: NativeSignal<number>; }[];
+
+        const cbk = (sig, v) =>
+        {
+            did_emit = v;
+        };
+
+        // increment the gc counter when the callback function is recycled.
+        finalizer.register(cbk, "Cbk");
+
+        map1.on_change.subscribe(cbk);
+
+        map1.set("2",signal2);
+
+        assertSetSize(2, map1);
+
+        map1.set("2",signal2);
+
+        assertSetSize(2, map1);
+
+
+        map1.delete("1");
+
+        assertSetSize(1, map1);
+
+        map1.delete("1");
+
+        assertSetSize(1, map1);
+
+        await wait(0);
+
+        if (
+            !did_emit 
+            || did_emit.length !== 2 
+            || did_emit[0].event !== "add" 
+            || did_emit[0].key !== "2"
+            || did_emit[0].value !== signal2
+            || did_emit[1].event !== "delete" 
+            || did_emit[1].key !== "1" 
+            || did_emit[1].value !== undefined
+        )
+        {
+            console.log(did_emit);
+            throw new Error("Didn't emit expected values");
+        }
+
+    }
+
+    await scope1();
+
+    await assertGcCount(1);
+}
+);
 
 // Test Filtered Sets
 // tests.push(async function test3()

@@ -1,8 +1,8 @@
 // Computed signals will add a set to this when they get their value.
 // Any other signal whose value is used will automatically add itself to the last array.
 
-import { uid, uid2 } from "../Shared/UID";
-import { Dirtyable, StatefulSubscribable, Subscribable } from "./Subscribable2";
+import { uid, uid2 } from "../../Shared/UID";
+import { Dirtyable, I_Subscribable, StatefulSubscribable, Subscribable } from "./Subscribable";
 
 /**
  * Represents a computed signal that dynamically computes its value based on other signals.
@@ -40,10 +40,10 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
      * @param source 
      * @returns 
      */
-    override dirty(source?: Subscribable<any>)
+    override dirty(source?: I_Subscribable<any>)
     {
         if (this._dirty)
-            return;
+            return this;
         this._dirty = true;
 
         // Propagate the dirty state.
@@ -54,6 +54,8 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
         {
             Subscribable.register_async_emit(()=>this.emit(this.get()))
         }
+
+        return this;
     };
 
     get()

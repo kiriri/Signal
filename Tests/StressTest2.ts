@@ -1,6 +1,6 @@
 // src/StressTest.ts
-import { Computed } from "../_Signal2/Computed2";
-import { NativeSignal } from "../_Signal2/Signal2";
+import { Computed } from "../_Signal2/Core/Computed";
+import { NativeSignal } from "../_Signal2/Core/Signal";
 
 async function wait(ms: number)
 {

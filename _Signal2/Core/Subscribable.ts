@@ -1,6 +1,6 @@
-import { uid, uid2 } from "../Shared/UID";
+import { uid, uid2 } from "../../Shared/UID";
 
-export type StatefulSubscribable<T> = Subscribable<T> & {get():T};
+export type StatefulSubscribable<T> = I_Subscribable<T> & {get():T};
 
 // This is a fake WeakRef. Using the real one results in bugs:
 // We want subscribers to disappear from the subscribers array when they are no longer used. But we don't want this subscribable,
@@ -29,10 +29,26 @@ export interface Dirtyable {
     // _dirty:boolean;
 }
 
+export interface I_Subscribable<T>{
+    subscribe(subscribable : Dirtyable) : this;
+    subscribe(subscribable : (source:I_Subscribable<T>, value: T) => any|void) : this;
+    subscribe(
+        fn: ((source:I_Subscribable<T>, value: T) => any|void) | Dirtyable, 
+    ):this;
+
+    unsubscribe(subscribable : Dirtyable) : this;
+    unsubscribe(subscribable : (source:I_Subscribable<T>, value: T) => any|void) : this;
+    unsubscribe(
+        fn: ((source:I_Subscribable<T>, value: T) => any|void) | Dirtyable, 
+    ):this;
+
+    dirty(source?:I_Subscribable<any>):this;
+}
+
 /**
  * Represents a subscribable value that can be observed for changes.
  */
-export class Subscribable<T>
+export class Subscribable<T> implements I_Subscribable<T>
 {
     
     // This is set or replaced whenever a computed type ( or a similar custom Subscribable )
@@ -83,10 +99,10 @@ export class Subscribable<T>
      * @param function_owns_signal - If true, this subscribable will not GC while the function is being held. If false, the function will not GC while the signal is held.
      * @param subscribable If set, instantly sets the target subscribable to dirty when this subscribable emits.
      */
-    subscribe(subscribable : Dirtyable) : void;
-    subscribe(subscribable : (source:Subscribable<T>, value: T) => any|void) : void;
+    subscribe(subscribable : Dirtyable) : this;
+    subscribe(subscribable : (source:I_Subscribable<T>, value: T) => any|void) : this;
     subscribe(
-        fn: ((source:Subscribable<T>, value: T) => any|void) | Dirtyable, 
+        fn: ((source:I_Subscribable<T>, value: T) => any|void) | Dirtyable, 
     )
     {
         if (Subscribable.global_listeners)
@@ -134,11 +150,11 @@ export class Subscribable<T>
      * Unsubscribes a function from being called when the value of this Subscribable changes.
      * @param fn - The function to unsubscribe.
      */
-    unsubscribe(subscribable : Dirtyable) : void;
-    unsubscribe(subscribable : (source:Subscribable<T>, value: T) => any|void) : void;
+    unsubscribe(subscribable : Dirtyable) : this;
+    unsubscribe(subscribable : (source:I_Subscribable<T>, value: T) => any|void) : this;
     unsubscribe(
-        fn: ((source:Subscribable<T>, value: T) => any|void) | Dirtyable, 
-    )
+        fn: ((source:I_Subscribable<T>, value: T) => any|void) | Dirtyable, 
+    ):this
     {
         if(typeof fn === "function")
         {
@@ -164,7 +180,7 @@ export class Subscribable<T>
      * Call this whenever this subscribable or any of its dependencies have changed.
      * This should propagate all the way through all subscribable which depend on this.
      */
-    dirty(source?:Subscribable<any>)
+    dirty(source?:I_Subscribable<any>)
     {   
         // Propagate dirty state to all dependent subscribables.
         if (this.dependants)
@@ -182,6 +198,8 @@ export class Subscribable<T>
                 }
             }
         }  
+
+        return this;
     }
 
 
@@ -206,6 +224,8 @@ export class Subscribable<T>
                 }
             }
         }  
+
+        return this;
     }
 
     promise():Promise<T>

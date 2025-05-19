@@ -1,4 +1,4 @@
-import { Dirtyable, Subscribable } from "./Subscribable2";
+import { Dirtyable, Subscribable } from "../Core/Subscribable";
 
 /**
  * An effect may reference any number of subscribables in its function, but it will only run whenever one of its sources changes.
