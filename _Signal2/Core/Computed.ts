@@ -17,17 +17,20 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
     fn: () => T;
 
     _dirty = true;
-    _cache!: T;
+    _cache !: T;
+    _eager !: boolean;
 
     /**
      * Creates a new Computed signal with a function that computes its value.
      * @param fn - The function that computes the value of the computed signal.
+     * @param [eager=false] If true, acts like a sink/effect, as in it does not wait to run the function until get() is called. Default false.
      */
-    constructor(fn: () => T, debug = false)
+    constructor(fn: () => T, eager = false)
     {
         super();
 
         this.fn = fn;
+        this._eager = eager;
 
         // Instantly run the function to subscribe to the relevant dependencies.
         this._cache = this._get();
@@ -50,7 +53,7 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
         super.dirty(source);
 
         // recalculate and propagate when we can be sure that all dependencies updated.
-        if(this.subscribers)
+        if(this.subscribers || this._eager)
         {
             Subscribable.register_async_emit(()=>this.emit(this.get()))
         }
@@ -169,5 +172,20 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
 
 
         return value;
+    }
+
+    /**
+     * Stop any future update of this computed.
+     * Call _get() to undo this.
+     */
+    destroy()
+    {
+        this._dirty = false;
+        for(let sub of [...this.subscribed_to.keys()])
+        {
+            sub.unsubscribe(this);
+        }
+
+        this.subscribed_to.clear();
     }
 }

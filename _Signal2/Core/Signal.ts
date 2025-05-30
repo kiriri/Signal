@@ -80,3 +80,5 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
         return super.emit(value);
     }
 }
+
+export type ReadonlySignal<T> = Omit<NativeSignal<T>,"set">;

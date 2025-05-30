@@ -9,6 +9,8 @@ import { SignalSet } from '../_Signal2/Collections/SignalSet';
 import { StatefulSubscribable, Subscribable } from '../_Signal2/Core/Subscribable';
 import { Effect } from '../_Signal2/Sinks/Effect';
 import { Interval } from '../_Signal2/Events/Interval';
+import { Order } from '../_Signal2/Collections/Order';
+import { count, count_fast, reduce_fast } from '../_Signal2/Collections/transformations';
 
 const finalized: any[] = [];
 const finalizer = new FinalizationRegistry((v) =>
@@ -440,6 +442,22 @@ tests.push(async function test3()
     await scope1();
 
     await assertGcCount(1);
+
+    async function scope2()
+    {
+        signal1.set(2);
+        let countedSet1 = set1.count((v)=>v.get() > 1 ? 1 : 0);
+
+
+        set1.add(signal1);
+        signal2.set(2);
+
+        // Problem : Get should circumvent need for wait...
+        // await wait(2);
+        console.log(countedSet1.get());
+    }
+
+    await scope2();
 }
 );
 
@@ -497,11 +515,11 @@ tests.push(async function test3()
             !did_emit 
             || did_emit.length !== 2 
             || did_emit[0].event !== "add" 
-            || did_emit[0].key !== "2"
-            || did_emit[0].value !== signal2
+            || did_emit[0].value[0] !== "2"
+            || did_emit[0].value[1] !== signal2
             || did_emit[1].event !== "delete" 
-            || did_emit[1].key !== "1" 
-            || did_emit[1].value !== undefined
+            || did_emit[1].value[0] !== "1" 
+            || did_emit[1].value[1] !== signal1
         )
         {
             console.log(did_emit);
@@ -515,6 +533,93 @@ tests.push(async function test3()
     await assertGcCount(1);
 }
 );
+
+/**
+ * Test Orders
+ */
+tests.push(async function OrderTest()
+{
+    const order = new Order<number>();
+
+    console.assert(order.first === null && order.first === null, "Initial Order not empty!");
+
+    let one = order.push(1);
+
+    console.assert(order.first !== null && order.first !== null && order.size() === 1, "Order after push: no first/last!");
+
+    one.delete();
+
+    console.log(order.first, order.size())
+    console.assert(order.first === null && order.first === null && order.size() === 0, "Order after Delete not empty! ");
+
+    // push
+
+    one = order.push(1);
+    let two = order.push(2);
+    let three = order.push(3);
+
+    let items = [...order].forEach((v,i)=>console.assert(v.value === (i+1), `Items out of order ${v.value}`));
+}
+);
+
+/**
+ * Generic Collection Count
+ */
+tests.push(async function OrderTest()
+{
+    const order = new Order<number>();
+    order.push(1);
+    order.push(2);
+    order.push(3);
+    const map = new SignalMap<string,number>([
+        ["hi",1],
+        ["hello",2],
+        ["bonjour",3]
+    ]);
+    const set = new SignalSet<number>([1,2,3]);
+
+    const order_count = count(order,(v)=>v);
+    const map_count = count(map,(v)=>v[1]);
+    const set_count = count(set,(v)=>v);
+
+    // console.log(order_count.get(), map_count.get(), set_count.get())
+
+    assertValue(6,order_count, map_count, set_count);
+}
+);
+
+/**
+ * Generic Fast Reduce (count)
+ */
+tests.push(async function OrderTest2()
+{
+    const order = new Order<number>();
+    order.push(1);
+    order.push(2);
+    order.push(3);
+
+    const order_count = count_fast(order,(v: { event: "add"|"delete"; value: number; })=>{
+        switch(v.event)
+        {
+            case 'add': return (v.value as number);
+            case 'delete': return -(v.value as number);
+        }
+
+        return 0;
+    },[]);
+
+    assertValue(6,order_count);
+
+    order.push(4);
+    order.push(5);
+
+    assertValue(15,order_count);
+}
+);
+
+
+
+
 
 // Test Filtered Sets
 // tests.push(async function test3()

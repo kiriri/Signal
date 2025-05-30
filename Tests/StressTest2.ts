@@ -1,4 +1,5 @@
 // src/StressTest.ts
+import { Order } from "../_Signal2/Collections/Order";
 import { Computed } from "../_Signal2/Core/Computed";
 import { NativeSignal } from "../_Signal2/Core/Signal";
 
@@ -87,11 +88,57 @@ async function stressTest2()
     console.log(`With computed get() it took ${Date.now() - start}ms.`);
 }
 
+import { count, reduce_fast } from '../_Signal2/Collections/transformations';
+
+async function stressTestCount()
+{
+    const num = 100_000;
+    const order = new Order<number>();
+    let start = Date.now();
+
+    for(let i = 0; i < num; i++)
+        order.push(i);
+
+    console.log(`Added ${num} numbers to Order in ${Date.now() - start}.`);
+    start = Date.now();
+
+    const order_count = count(order,(v)=>1);
+
+    // console.log(`Initialized count in ${Date.now() - start}.`);
+    // start = Date.now();
+
+    // const order_count2 = reduce_fast(order,(v,prev)=>{
+    //     switch(v.event)
+    //     {
+    //         case 'add': return prev + 1;
+    //         case 'delete': return prev - 1;
+    //     }
+
+    //     return prev;
+    // },0,[]);
+
+    console.log(`Initialized count2 in ${Date.now() - start}.`);
+    start = Date.now();
+
+
+    for(let i = 0; i < num; i++)
+        order.push(i);
+
+    // console.log(order_count.get(),order_count2.get());
+    console.log(`Added ${num} ${Date.now() - start}.`);
+
+
+
+}
+
+
 
 async function tests()
 {
     await stressTest();
     await stressTest2();
+
+    await stressTestCount();
 
 }
 tests();

@@ -10,6 +10,7 @@ Interval
 
 SignalSet
 SignalMap
+Order
 
 ComputedSet
 FilteredSet
@@ -18,30 +19,34 @@ ReducedSet (So operations like sum work just as well)
 SomeSet (Same as ReducedSet, but terminates early.)
 
 
-# Rethink emit
+# Rethink Collections
 
-We need "sinks" which represent functions or classes which always want to be informed of a change asap. Eg a generic subscribed function, or an Angular() wrapper or an Effect.
-But normal Computed should only propagate "sinkiness". A trailing computed should be ignored until get() is called. Same applies to mapped sets/maps.
+Map + Set is good.
 
-Furthermore we need a dependency map. Signals like Computed must be able to tell if all of their components are ready. Otherwise they must defer. Or they must be able to force update the values from their components, and make them defer when it's their turn.
+I_NativeCollection + mapper functions?
 
-There's also the difference between emitting immediately, and emitting asap ( setTimeout(,0) ) . Both have valid use cases. But isn't this kind of what a Transaction already is? Do we force transactions, put emit behind setTimeout()?
-
-
-
+- "merge"|"sum"|"multiply" (ie order doesn't matter)
+- map
+- expand (ie 1 to many)
 
 
-# Transactionlike
+## Order
+- We need some way to handle order. Eg a binary linked list with a binary tree backup for log(n) order comparisons (is in front of / is after would traverse the tree up until a common node is found, then compare the last node of each path). This could ceaselessly slot into the existing Set/Map structures.
+This could be called `Order` and support operations like move(), push, pop, etc inside of it.
+But implementing some sort of ab tree is a lot of work if we want it to auto balance.
+- Orders should be capable of holding duplicates?
+- Should `OrderItem`s extend NativeSignals?
 
-So what if we trigger subscribed functions late, but dependent signals immediately?
-
-Eg Effect is called late. So are custom subscribe() calls.
-But Computed is called immediately once it is requested through get().
+BUT : isBefore/isAfter is so rarely used, why make all O(1) operations into O(log n) for something noone uses?! It should be extracted into its own class.
 
 
-So sinks like Effect or subscribables with custom subscribe functions will register themselves in a global set. Any set operation will check a global bool if setTimeout has been called. If it hasn't, it will create it.
+## Order 2.0 : ReferenceCollection
+The current iteration of Order is just a binary linked list, where events trigger on `add`/`delete` (which set covers) and `move` (which is new).
 
-## Changes
-- Remove transaction entirely.
-- subscribe : hard reference to signals. just a function means its a sink.
-- dirty() and _dirty=false
+Ideally this should be generalized into a more generic form which also supports more complex graphs.
+Order should then be a very specific subset of such a ReferenceCollection.
+
+Question is, does this affect the performance? The mapping to other types?
+
+## Collection Transformation Interface
+Now that all collections use on_change BufferSubscribables, we can turn mapped/filtered/reduced type into more generic, more maintainable operations.

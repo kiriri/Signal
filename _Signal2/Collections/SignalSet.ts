@@ -1,17 +1,28 @@
 import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 import { Computed } from "../Core/Computed";
-import { NativeSignal } from "../Core/Signal";
+import { NativeSignal, ReadonlySignal } from "../Core/Signal";
 import { I_Subscribable, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
+import type { I_NativeCollection } from "./Collection";
 
+export type SetEvents<T> = {
+    add:{
+        event: "add"; 
+        value: T;
+    },
+    delete:{
+        event: "delete"; 
+        value: T;
+    }
+};
 
-
-export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscribable<Set<T>>
+export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscribable<Set<T>>, I_NativeCollection<T,SetEvents<T>>
 {
     readonly _internal: Set<T>;
 
     // We're using on_change instead of on_add + on_delete so transactions which
     // add and delete the same value in a short time can be historialized in sequence in one buffer.
-    on_change = new BufferedSubscribable<{ event: "add" | "delete", value: T }>();
+    on_change = new BufferedSubscribable<SetEvents<T>[keyof SetEvents<T>]>();
+    _on_change_instant = new Subscribable<SetEvents<T>[keyof SetEvents<T>]>();
 
     constructor(items?: Iterable<T> | null | undefined)
     {
@@ -36,6 +47,7 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
         {
             this._internal.add(value);
             this.on_change.emit({ event: "add", value })
+            this._on_change_instant.emit({ event: "add", value })
             this.dirty();
         }
     }
@@ -45,6 +57,7 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
         if (this._internal.delete(value))
         {
             this.on_change.emit({ event: "delete", value })
+            this._on_change_instant.emit({ event: "delete", value })
             this.dirty();
         }
     }
@@ -58,6 +71,7 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
         for (let value of values)
         {
             this.on_change.emit({ event: "delete", value })
+            this._on_change_instant.emit({ event: "delete", value })
         }
 
         this.dirty();
@@ -89,6 +103,124 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
     {
         return this._internal.has(value);
     }
+
+    count(fn:(v:T)=>number, subscribe:boolean = true):ReadonlySignal<number>
+    {
+        const result = new NativeSignal(0);
+
+        const listeners = new Map<T,Computed<number>>()
+
+        // This is very inefficient. Like 
+
+        function listen(v:T)
+        {
+            let computed: Computed<number>; 
+            computed = new Computed<number>(()=>{
+                let old_value = computed?._cache ?? 0;
+                let new_value = fn(v);
+                result.set(result._value + new_value - old_value);
+                return new_value;
+            }, true);
+
+            listeners.set(v,computed);
+        }
+
+        function unlisten(v:T)
+        {
+            listeners.get(v).destroy();
+            listeners.delete(v);
+        }
+
+        const values = [...this.get().values()];
+        for (let i = 0; i < values.length; i++)
+        {
+            listen(values[i]);
+        }
+
+
+        this._on_change_instant.subscribe((_,ve: { value: T, event: "add" | "delete" }) =>
+        {
+            let { value, event } = ve;
+            if (event === "add")
+            {
+                listen(value);
+            }
+            else if (event === "delete")
+            {
+                unlisten(value);
+            }
+        });
+
+        return result;
+    }
+
+
+
+    // count2(fn:(v:T)=>number):Omit<NativeSignal<number>,"set">
+    // {
+    //     // Ideally we only check for changes the moment the result's get() is called
+    //     // But we still have to keep track of which  elements were added/removed and which signal elements changed.
+
+    //     const on_change = new BufferedSubscribable<{ event: "add" | "delete", value: T }>();
+    //     this.on_change_instant.subscribe(on_change);
+
+    //     const result = new Computed<number>(()=>{
+    //         let changes = on_change.consume();
+    //     });
+
+
+    //     const listeners = new Map<T,Computed<number>>()
+
+    //     // This is very inefficient. Like 
+
+    //     function listen(v:T)
+    //     {
+    //         let computed: Computed<number>; 
+    //         computed = new Computed<number>(()=>{
+    //             let old_value = computed?._cache ?? 0;
+    //             let new_value = fn(v);
+    //             result.set(result._value + new_value - old_value);
+    //             return new_value;
+    //         }, true);
+
+    //         listeners.set(v,computed);
+    //     }
+
+    //     function unlisten(v:T)
+    //     {
+    //         listeners.get(v).destroy();
+    //         listeners.delete(v);
+    //     }
+
+    //     const values = [...this.get().values()];
+    //     for (let i = 0; i < values.length; i++)
+    //     {
+    //         listen(values[i]);
+    //     }
+
+
+    //     this.on_change_instant.subscribe((_,ve: { value: T, event: "add" | "delete" }) =>
+    //     {
+    //         let { value, event } = ve;
+    //         if (event === "add")
+    //         {
+    //             listen(value);
+    //         }
+    //         else if (event === "delete")
+    //         {
+    //             unlisten(value);
+    //         }
+    //     });
+
+    //     return result;
+    // }
+
+
+    // map<R>(fn:(v:T)=>R):Omit<SignalSet<R>,"set">
+    // {
+
+    //     return this;
+    // }
 
     /**
      * Presuming the values in this set remain constant (or at least their evaluation of the predicate does)

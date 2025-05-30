@@ -66,5 +66,23 @@ export class BufferedSubscribable<T> implements I_Subscribable<T[]>
     {
         this.on_target_change(undefined,value);
     }
+
+    /**
+     * Returns the current buffer and resets it internally.
+     * Note that this conflicts with attached subscribables, which will
+     * not receive the full buffer anymore.
+     * @returns 
+     */
+    consume()
+    {
+        const result = this.buffer;
+        this.buffer = [];
+        this._dirty = false;
+
+        if(Subscribable.global_listeners)
+            Subscribable.global_listeners.push(this.proxy);
+
+        return result;
+    }
 }
 

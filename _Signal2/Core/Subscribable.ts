@@ -25,7 +25,7 @@ class FakeWeakRef<T>
  * or that it defers triggering a function like Effect.
  */
 export interface Dirtyable {
-    dirty():void;
+    dirty(source?:I_Subscribable<any>):void;
     // _dirty:boolean;
 }
 
