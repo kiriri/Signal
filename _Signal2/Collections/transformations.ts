@@ -55,16 +55,21 @@ export function reduce_fast<
         return result._value;
     }
 
-    const dependency_handler = {
-        dirty: function (source?: I_Subscribable<any>)
-        {
-            fully_dirty = true;
-            result.dirty();
+    if (dependends_on.length > 0)
+    {
+        const dependency_handler = {
+            dirty: function (source?: I_Subscribable<any>)
+            {
+                fully_dirty = true;
+                result.dirty();
+            }
         }
-    }
 
-    for (let dependency of dependends_on)
-        dependency.subscribe(dependency_handler);
+        result["dependency_handler"] = dependency_handler; // Bind it so it GCs alongside the result
+
+        for (let dependency of dependends_on)
+            dependency.subscribe(dependency_handler);
+    }
 
     producer._on_change_instant.subscribe((_, ve) =>
     {
@@ -87,9 +92,9 @@ export function reduce_fast<
     return result;
 }
 
-export function count_fast<V>(collection : I_NativeCollection<V,any>, counter:(event:{event:"add"|"delete", value:V})=>number, depends_on:StatefulSubscribable<any>[])
+export function count_fast<V>(collection: I_NativeCollection<V, any>, counter: (event: { event: "add" | "delete", value: V }) => number, depends_on: StatefulSubscribable<any>[])
 {
-    return reduce_fast(collection, (event,prev)=>prev + counter(event as any), 0, depends_on);
+    return reduce_fast(collection, (event, prev) => prev + counter(event as any), 0, depends_on);
 }
 
 
@@ -165,6 +170,94 @@ export function count<
         0
     )
 }
+
+
+
+
+// Map/Filter
+
+export function map_fast<
+    ProdValue,
+    ProdEvents extends ReqColTypes<ProdValue>,
+    Producer extends I_NativeCollection<ProdValue, ProdEvents>,
+    ConsValue,
+>(
+    producer: Producer,
+    constructor: {new():I_NativeCollection<ConsValue,any>},
+    handler: (event: ReqColTypes<ProdValue>["add" | "delete"], prev_value: ConsValue) => ConsValue,
+    dependends_on: StatefulSubscribable<any>[],
+): I_NativeCollection<ConsValue,any>
+{
+    const result = new constructor();
+
+    const dirty_entries = new Map<ProdValue, ReqColTypes<ProdValue>["add" | "delete"]>();
+    let fully_dirty = false;
+
+    function reset_value()
+    {
+        let new_value = initial_value;
+
+        for (let value of producer.get())
+            new_value = handler({ event: "add", value }, new_value);
+
+        result.set(new_value);
+        fully_dirty = false;
+        dirty_entries.clear();
+    }
+
+    result.get = () =>
+    {
+        if (fully_dirty)
+            reset_value();
+        else
+        {
+            let new_value = result._value;
+            for (let value of dirty_entries.values())
+                new_value = handler(value, new_value);
+            result.set(new_value);
+        }
+
+        return result._value;
+    }
+
+    if (dependends_on.length > 0)
+    {
+        const dependency_handler = {
+            dirty: function (source?: I_Subscribable<any>)
+            {
+                fully_dirty = true;
+                result.dirty();
+            }
+        }
+
+        result["dependency_handler"] = dependency_handler; // Bind it so it GCs alongside the result
+
+        for (let dependency of dependends_on)
+            dependency.subscribe(dependency_handler);
+    }
+
+    producer._on_change_instant.subscribe((_, ve) =>
+    {
+        // fully dirty will calculate all entries from scratch the next time
+        // the result's get() function is called.
+        if (fully_dirty)
+            return;
+
+        // Either it has added and then deleted, or vice versa. 
+        // Either way, skip updating the value altogether
+        if (dirty_entries.has(ve["value"]))
+            dirty_entries.delete(ve["value"]);
+        else
+            dirty_entries.set(ve["value"], ve);
+    });
+
+
+    reset_value();
+
+    return result;
+}
+
+
 
 // function transform<
 // ProdValue, 

@@ -40,6 +40,10 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
         return this._internal;
     }
 
+    _add(value: T)
+    {
+        this.add(value);
+    }
     add(value: T)
     {
         let exists = this._internal.has(value);
@@ -52,6 +56,10 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
         }
     }
 
+    _delete(value: T)
+    {
+        this.delete(value);
+    }
     delete(value: T)
     {
         if (this._internal.delete(value))

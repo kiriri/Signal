@@ -95,6 +95,10 @@ export class SignalMap<K, V> extends Subscribable<Map<K, V>> implements Stateful
         return result;
     }
 
+    _add(value: [K, V])
+    {
+        this.set(...value);
+    }
     set(key: K, value: V)
     {
         if(value === undefined)
@@ -121,6 +125,10 @@ export class SignalMap<K, V> extends Subscribable<Map<K, V>> implements Stateful
         }
     }
 
+    _delete(value: [K, V])
+    {
+        this.delete(value[0]);
+    }
     delete(key: K)
     {
         if (this._internal.delete(key))

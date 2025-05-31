@@ -206,6 +206,15 @@ export class Order<T> extends Subscribable<Map<T, OrderNode<T>>> implements I_Na
         return node;
     }
 
+    _delete(value: T)
+    {
+        const node = this.nodes.get(value);
+        node?.delete();
+    }
+    _add(value: T)
+    {
+        this.push(value);
+    }
     push(value: T)
     {
         let node = this._createNode(value);

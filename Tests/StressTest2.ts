@@ -104,18 +104,18 @@ async function stressTestCount()
 
     const order_count = count(order,(v)=>1);
 
-    // console.log(`Initialized count in ${Date.now() - start}.`);
-    // start = Date.now();
+    console.log(`Initialized count in ${Date.now() - start}.`);
+    start = Date.now();
 
-    // const order_count2 = reduce_fast(order,(v,prev)=>{
-    //     switch(v.event)
-    //     {
-    //         case 'add': return prev + 1;
-    //         case 'delete': return prev - 1;
-    //     }
+    const order_count2 = reduce_fast(order,(v,prev)=>{
+        switch(v.event)
+        {
+            case 'add': return prev + 1;
+            case 'delete': return prev - 1;
+        }
 
-    //     return prev;
-    // },0,[]);
+        return prev;
+    },0,[]);
 
     console.log(`Initialized count2 in ${Date.now() - start}.`);
     start = Date.now();
@@ -124,7 +124,7 @@ async function stressTestCount()
     for(let i = 0; i < num; i++)
         order.push(i);
 
-    // console.log(order_count.get(),order_count2.get());
+    console.log(order_count.get(),order_count2.get());
     console.log(`Added ${num} ${Date.now() - start}.`);
 
 
