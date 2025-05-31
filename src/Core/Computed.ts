@@ -1,7 +1,6 @@
 // Computed signals will add a set to this when they get their value.
 // Any other signal whose value is used will automatically add itself to the last array.
 
-import { uid, uid2 } from "../../Shared/UID";
 import { Dirtyable, I_Subscribable, StatefulSubscribable, Subscribable } from "./Subscribable";
 
 /**

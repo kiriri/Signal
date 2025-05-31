@@ -1,4 +1,3 @@
-import { uid, uid2 } from "../../Shared/UID";
 
 export type StatefulSubscribable<T> = I_Subscribable<T> & {get():T};
 

@@ -1,10 +1,8 @@
 
 
 import { NativeSignal } from '../Core/Signal';
-// import { SignalMap } from '../SignalMap';
-// import { SignalSet } from '../SignalSet';
 import { I_Subscribable, StatefulSubscribable, Subscribable } from '../Core/Subscribable';
-import { signal, Signal as AngularSignal, effect } from '@angular/core';
+import {signal, effect, type Signal as AngularSignal} from "@angular/core";
 
 function equal() { return false }
 
