@@ -1,0 +1,24 @@
+import { Subscribable } from "../Core/Subscribable";
+/**
+ * An effect may reference any number of subscribables in its function, but it will only run whenever one of its sources changes.
+ */
+export declare class Effect<Inputs extends Record<string, Subscribable<any>>, T> {
+    readonly sources: Inputs;
+    fn: (v: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>) => T;
+    _source_cache: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>;
+    _updaters: Record<keyof Inputs, (source: Subscribable<T>, value: T) => any>;
+    _dirty: boolean;
+    /**
+     * Creates a new Computed signal with a function that computes its value.
+     * @param fn - The function that computes the value of the computed signal.
+     */
+    constructor(sources: Inputs, fn: (v: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>) => T);
+    /**
+     * Instantly removes all event listener references.
+     * Call this to make sure an Effect for sure no longer
+     * triggers. Without this the garbage collection may
+     * take seconds before it cleans up orphaned effects,
+     * during which time they will still trigger!
+     */
+    destroy(): void;
+}

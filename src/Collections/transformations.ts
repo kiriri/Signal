@@ -2,30 +2,405 @@ import { NativeSignal } from "../Core/Signal";
 import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 import { I_NativeCollection, ReqColTypes } from "./Collection";
 import { Computed } from "../Core/Computed";
-import { I_Subscribable, StatefulSubscribable } from "../Core/Subscribable";
+import { I_Subscribable, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 
 // TODO : Maps need to use the same entry in every single event or else we can't store related
 // state info.
+
+
+
+
+
+
+/**
+ * 
+ * @param source 
+ * @param identityValue 
+ * @param opts 
+ * @param merger Uses identityValue on delete! Applies relative changes based on previous and current value.
+ * @param mapper Optionally map any added or updated value
+ * @returns 
+ */
+export function reduce_generic(
+    source: I_NativeCollection<any, any>,
+    identityValue,
+    opts: {
+        output?: StatefulSubscribable<typeof identityValue>,
+        unpackSignals?: boolean,
+        lazy?: boolean
+    },
+    merger: (sourceItem, output, value, prev_value) => void,
+    mapper?: (sourceItem) => any
+)
+{
+    const output = opts.output ?? new NativeSignal(identityValue);
+    const unpackSignals = opts.unpackSignals ?? false;
+    const lazy = opts.lazy ?? false;
+
+    const cache = new Map<typeof identityValue, {
+        prev: any
+    }>();
+
+
+
+    if (lazy)
+    {
+        const dirty = new Map<typeof identityValue,typeof identityValue>();
+
+        function lazy_apply(source, value)
+        {
+            dirty.set(source,value);
+        }
+
+        function apply_all_dirty()
+        {
+            for(let kv of dirty.entries())
+            {
+                const key = kv[0];
+                if(unpackSignals)
+                    kv[1] = kv[1].get();
+                const value = mapper ? mapper?.(kv[1]) : kv[1];
+                let cacheItem = cache.get(key);
+                let prevValue;
+                if(!cacheItem)
+                {
+                    if (unpackSignals)
+                    {
+                        listen(kv[0]);
+                    }
+                    prevValue = identityValue;
+                    cache.set(key, cacheItem = { prev: value });
+                }
+                else
+                {
+                    prevValue = cacheItem.prev;
+                    cacheItem.prev = value;
+                }
+
+                merger(key,output,value, prevValue);
+            }
+        }
+
+        const original_get = output.get.bind(output);
+        output.get = (...args)=>{
+            if(dirty.size > 0)
+                apply_all_dirty();
+
+            return original_get(...args);
+        }
+
+        function listen(signal: Subscribable<any>)
+        {
+            signal.subscribe(lazy_apply);
+        }
+
+        function unlisten(signal: Subscribable<any>)
+        {
+            if(cache.delete(signal))
+            {
+                dirty.delete(signal);
+                signal.unsubscribe(lazy_apply);
+            }
+        }
+
+        for (let initial_value of source.get())
+        {
+            lazy_apply(initial_value, initial_value)
+        }
+    
+
+        source._on_change_instant.subscribe((_, ve) =>
+        {
+            if (lazy)
+            {
+                switch (ve.event)
+                {
+                    // TODO : lazy only listens when get() is called for the first time
+                    // it also only updates the value at that time, all changed entries at once. 
+                    case "add":
+                        lazy_apply(ve.value,ve.value)
+                        break;
+                    case "delete":
+                        lazy_apply(ve.value, unpackSignals ? {get(){return identityValue}} : identityValue);
+                        if (unpackSignals)
+                        {
+                            unlisten(ve["value"]);
+                        }
+                        break;
+                    case "update":
+                        lazy_apply(ve.value, ve.value);
+                        break
+                    default: break;
+                }
+            }
+        });
+    }
+    else
+    {
+
+        function apply_value(sourceItem, value, unpack = unpackSignals)
+        {
+            if (unpack)
+            {
+                value = value.get();
+            }
+    
+            let state = cache.get(sourceItem);
+            let prev_value = state?.prev ?? identityValue;
+    
+            if (state)
+                state.prev = value;
+            else
+            {
+                cache.set(sourceItem, { prev: value });
+            }
+                
+    
+            merger(sourceItem, output, value, prev_value);
+        }
+    
+        for (let initial_value of source.get())
+        {
+            apply_value(initial_value, mapper?.(initial_value) ?? initial_value)
+        }
+
+        function listen(signal: Subscribable<any>)
+        {
+            signal.subscribe(apply_value);
+        }
+
+        function unlisten(signal: Subscribable<any>)
+        {
+            signal.unsubscribe(apply_value);
+            cache.delete(signal);
+        }
+        
+        source._on_change_instant.subscribe((_, ve) =>
+        {
+            switch (ve.event)
+            {
+                case "add":
+                    apply_value(ve["value"], mapper?.(ve["value"]) ?? ve["value"]);
+                    if (unpackSignals)
+                    {
+                        listen(ve["value"]);
+                    }
+                    break;
+                case "delete":
+                    if (unpackSignals)
+                    {
+                        unlisten(ve["value"]);
+                    }
+                    else
+                    {
+                        apply_value(ve["value"], identityValue, false);
+                    }
+                    break;
+                case "update":
+                    apply_value(ve["value"], mapper?.(ve["value"]) ?? ve["value"]);
+                    if (unpackSignals)
+                    {
+                        throw new Error("Unpack Signals w/ update events not implemented yet! How do we unsubscribe from the old signal then?")
+                        // unlisten(ve["value"]);
+                        // listen(ve["value"]);
+                    }
+                    break
+                default: break;
+            }
+        });
+    }
+
+
+
+    return output;
+}
+
+
+
+
+
+
+
+
+/**
+ * It doesn't matter if we map changes to a single nativeSignal or a collection.
+ * Just provide the output directly, and the way that changes are merged into it.
+ * @param producer 
+ * @param output 
+ */
+// export function reduceGeneric<
+//     const Producer extends I_NativeCollection<any, any>,
+//     const Output extends Subscribable<any>,
+//     const OPTS extends {
+//         lazy?: boolean, // if true, override the get() function of the output to make it lazy. Default true
+//         unpackSignals?: boolean, // if signal, expect all values in the target to be subscribable and rerun the reduction any time they change using a synthetic {event:"update", value} event.
+//         computed?: boolean,
+//         dependencies?: Subscribable<any>[], // if any of these change, recalculate all
+//     },
+// >(
+//     producer: Producer,
+//     output: Output,
+//     opts: OPTS,
+//     processor: (
+//         event: {
+//             event: "add" | "delete" | "update";
+//             value: typeof producer extends I_NativeCollection<infer V, any> ? (
+//                 typeof opts["unpackSignals"] extends true ? (
+//                     V extends I_Subscribable<infer V2> ? V2 : never
+//                 ) : V
+//             ) : never;
+//         }
+//     ) => void
+// ): Output
+// {
+
+//     const lazy = opts.lazy ?? true;
+//     const unpackSignals = opts.unpackSignals ?? false;
+//     const computed = opts.computed ?? false;
+//     const dependencies = opts.dependencies;
+//     const use_dependencies = !!dependencies;
+
+//     if (computed && (unpackSignals || use_dependencies))
+//     {
+//         throw new Error("Reduce should either use a computed function, or manual dependencies + unpackSignals. Don't combine opts.computed with dependencies/unpackSignals, it only degrades performance.")
+//     }
+
+
+//     type InputValue = Output extends Subscribable<infer V> ? V : never;
+//     type OutputValue = typeof producer extends I_NativeCollection<infer V, any> ? (
+//         typeof opts["unpackSignals"] extends true ? (
+//             V extends I_Subscribable<infer V2> ? V2 : never
+//         ) : V
+//     ) : never;
+
+//     const dirty_entries = new Map<InputValue, Parameters<typeof processor>[0]>();
+//     let fully_dirty = false;
+
+//     // function update_all()
+//     // {
+//     //     let new_value = initial_value;
+
+//     //     for (let value of producer.get())
+//     //         new_value = reducer({ event: "add", value }, new_value);
+
+//     //     result.set(new_value);
+//     //     fully_dirty = false;
+//     //     dirty_entries.clear();
+//     // }
+
+//     // result.get = () =>
+//     // {
+//     //     if (fully_dirty)
+//     //         reset_value();
+//     //     else
+//     //     {
+//     //         let new_value = result._value;
+//     //         for (let value of dirty_entries.values())
+//     //             new_value = reducer(value, new_value);
+//     //         result.set(new_value);
+//     //     }
+
+//     //     return result._value;
+//     // }
+
+//     // if (dependends_on.length > 0)
+//     // {
+//     //     const dependency_handler = {
+//     //         dirty: function (source?: I_Subscribable<any>)
+//     //         {
+//     //             fully_dirty = true;
+//     //             result.dirty();
+//     //         }
+//     //     }
+
+//     //     result["dependency_handler"] = dependency_handler; // Bind it so it GCs alongside the result
+
+//     //     for (let dependency of dependends_on)
+//     //         dependency.subscribe(dependency_handler);
+//     // }
+
+//     // const listeners = new Map<InputValue, Computed<OutputValue>>();
+
+//     // function listen(v: InputValue)
+//     // {
+
+//     //     let computed: Computed<OutputValue>;
+//     //     let state = {};
+//     //     computed = new Computed<OutputValue>(() =>
+//     //     {
+//     //         let prev_value = result._value;
+//     //         let new_value = reducer(v, prev_value, state);
+//     //         result.set(new_value);
+//     //         return new_value;
+//     //     }, true);
+
+//     //     listeners.set(v, computed);
+//     // }
+
+//     // function unlisten(v: InputValue)
+//     // {
+//     //     listeners.get(v).destroy();
+//     //     listeners.delete(v);
+//     // }
+
+//     // const values = [...producer.get()];
+//     // for (let i = 0; i < values.length; i++)
+//     //     listen(values[i]);
+
+
+
+
+
+//     producer._on_change_instant.subscribe((_, ve) =>
+//     {
+//         let { event, value } = ve;
+
+//         if (lazy)
+//         {
+//             if (dirty_entries.has(value))
+//                 dirty_entries.delete(value);
+//             else
+//                 dirty_entries.set(value, ve);
+//         }
+//         else
+//         {
+//             processor(ve)
+//         }
+//     });
+
+//     return output;
+// }
 
 // Reduce can be done much more efficiently without Computed, 
 // but it won't work if the reduce function contains any signals.
 // This will completely recalculate the reduced value whenever any of the dependencies changes.
 // Otherwise it will partially update the value whenever something is added or removed.
 export function reduce_fast<
+    ConsValue,
     ProdValue,
     ProdEvents extends ReqColTypes<ProdValue>,
-    Producer extends I_NativeCollection<ProdValue, ProdEvents>,
-    ConsValue,
+    Producer extends I_NativeCollection<ProdValue, ProdEvents>
 >(
-    producer: Producer,
-    reducer: (event: ReqColTypes<ProdValue>["add" | "delete"], prev_value: ConsValue) => ConsValue,
     initial_value: ConsValue,
+    producer: Producer,
+    reducer: (
+        event: {
+            event: "add" | "delete" | "update";
+            value: ProdValue;
+        },
+        prev_value: ConsValue
+    ) => ConsValue,
     dependends_on: StatefulSubscribable<any>[],
 ): NativeSignal<ConsValue>
 {
+    // type ProdValue = Producer extends I_NativeCollection<infer V, infer E> ? V : never;
+
     const result = new NativeSignal(initial_value);
 
-    const dirty_entries = new Map<ProdValue, ReqColTypes<ProdValue>["add" | "delete"]>();
+    const dirty_entries = new Map<ProdValue, {
+        event: "add" | "delete";
+        value: ProdValue;
+    }>();
     let fully_dirty = false;
 
     function reset_value()
@@ -78,12 +453,15 @@ export function reduce_fast<
         if (fully_dirty)
             return;
 
+        if (!["add", "delete"].includes(ve.event))
+            return;
+
         // Either it has added and then deleted, or vice versa. 
         // Either way, skip updating the value altogether
         if (dirty_entries.has(ve["value"]))
             dirty_entries.delete(ve["value"]);
         else
-            dirty_entries.set(ve["value"], ve);
+            dirty_entries.set(ve["value"], ve as any);
     });
 
 
@@ -92,9 +470,9 @@ export function reduce_fast<
     return result;
 }
 
-export function count_fast<V>(collection: I_NativeCollection<V, any>, counter: (event: { event: "add" | "delete", value: V }) => number, depends_on: StatefulSubscribable<any>[])
+export function count_fast<V>(collection: I_NativeCollection<V, any>, counter: (event: { event: "add" | "delete" | "update", value: V }) => number, depends_on: StatefulSubscribable<any>[])
 {
-    return reduce_fast(collection, (event, prev) => prev + counter(event as any), 0, depends_on);
+    return reduce_fast(0, collection, (event, prev) => prev + counter(event as any), depends_on);
 }
 
 

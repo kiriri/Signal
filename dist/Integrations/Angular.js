@@ -1,19 +1,14 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.NativeToAngular = NativeToAngular;
-exports.AngularToNative = AngularToNative;
-var Signal_1 = require("../Core/Signal");
-var core_1 = require("@angular/core");
+import { NativeSignal } from '../Core/Signal';
+import { signal, effect } from "@angular/core";
 function equal() { return false; }
-function NativeToAngular(subscribable) {
-    var _a, _b, _c;
+export function NativeToAngular(subscribable) {
     if (subscribable["$angular"])
         return subscribable["$angular"];
     // try to initialize it with the current value if it exists, otherwise null
-    var result = (0, core_1.signal)((_c = (_b = (_a = subscribable).get) === null || _b === void 0 ? void 0 : _b.call(_a)) !== null && _c !== void 0 ? _c : null, {
-        equal: equal
+    const result = signal(subscribable.get?.() ?? null, {
+        equal
     });
-    var listener = function (signal, v) {
+    const listener = (signal, v) => {
         result.set(v);
     };
     // Make sure the listener does not GC while the angular signal is held.
@@ -29,20 +24,21 @@ function NativeToAngular(subscribable) {
     subscribable["$angular"] = result;
     return result;
 }
-function AngularToNative(signal) {
+export function AngularToNative(signal) {
     if (signal["$native-signal"])
         return signal["$native-signal"];
     // try to initialize it with the current value if it exists, otherwise null
-    var result;
+    let result;
     try {
-        result = new Signal_1.NativeSignal(signal());
+        result = new NativeSignal(signal());
     }
     catch (e) {
-        result = new Signal_1.NativeSignal(null);
+        result = new NativeSignal(null);
     }
-    (0, core_1.effect)(function () {
+    effect(() => {
         result.set(signal());
     });
     signal["$native-signal"] = result;
     return result;
 }
+//# sourceMappingURL=Angular.js.map

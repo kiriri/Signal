@@ -92,7 +92,7 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
         let value = this.fn();
 
         // Set all states to 0.
-        for (let [sub] of this.subscribed_to)
+        for (let sub of this.subscribed_to.keys())
         {
             this.subscribed_to.set(sub, 0);
         }

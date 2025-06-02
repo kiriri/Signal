@@ -1,4 +1,4 @@
-import { Subscribable } from "_Signal2/Core/Subscribable";
+import { Subscribable } from "../Core/Subscribable";
 import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 
 
@@ -11,10 +11,12 @@ export type ReqColTypes<T> =  {
         event: "delete"; 
         value: T;
     },
-    [K:Exclude<string,"add"|"delete">]:any
+    [K:Exclude<string,"add"|"delete">]:{
+        event:string
+    }
 };
 
-export interface I_NativeCollection<T, Events extends ReqColTypes<T>>{
+export interface I_NativeCollection<T, Events extends ReqColTypes<T> = ReqColTypes<T>>{
     on_change: BufferedSubscribable<Events[keyof Events]>;
     _on_change_instant: Subscribable<Events[keyof Events]>;
     get(): Iterable<T>;

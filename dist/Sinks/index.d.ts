@@ -1,3 +1,2 @@
 export * from "./BufferedSubscribable";
 export * from "./Effect";
-//# sourceMappingURL=index.js.map
