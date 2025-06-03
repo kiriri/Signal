@@ -9,6 +9,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "rm ./dist -r && npx tsc",
+    "build:lite": "npx tsc",
     "build:alt": "npx tsc ./src/index.ts --outDir ./dist --noCheck --sourceMap --declaration --declarationMap"
   },
   "exports": {
@@ -29,7 +30,6 @@
   },
   "homepage": "https://github.com/kiriri/Signal#readme",
   "devDependencies": {
-    "@angular/core": "^19.2.14",
     "typescript": "^5.8.3"
   }
 }

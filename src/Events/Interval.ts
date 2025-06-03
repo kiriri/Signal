@@ -1,4 +1,4 @@
-import { NativeSignal } from "../Core/Signal";
+import { NativeSignal } from "../Core/NativeSignal";
 import { Subscribable } from "../Core/Subscribable";
 
 let intervals = new Map<number, WeakRef<NativeSignal<number>>>();

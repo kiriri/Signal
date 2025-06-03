@@ -1,6 +1,6 @@
 import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 import { Computed } from "../Core/Computed";
-import { NativeSignal } from "../Core/Signal";
+import { NativeSignal } from "../Core/NativeSignal";
 import { Subscribable } from "../Core/Subscribable";
 export class SignalSet extends Subscribable {
     _internal;
@@ -10,7 +10,7 @@ export class SignalSet extends Subscribable {
     _on_change_instant = new Subscribable();
     constructor(items) {
         super();
-        this._internal = new Set(items);
+        this._internal = new Set(items ? [...items] : []);
     }
     get() {
         if (Subscribable.global_listeners)

@@ -1,3 +1,3 @@
 export { Computed } from "./Computed";
-export { NativeSignal, ReadonlySignal } from "./Signal";
-export { Dirtyable, I_Subscribable, StatefulSubscribable, Subscribable } from "./Subscribable";
+export { NativeSignal, type ReadonlySignal } from "./NativeSignal";
+export { type Dirtyable, type I_Subscribable, type StatefulSubscribable, Subscribable } from "./Subscribable";

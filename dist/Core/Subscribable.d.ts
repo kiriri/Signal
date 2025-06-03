@@ -31,7 +31,7 @@ export declare class Subscribable<T> implements I_Subscribable<T> {
     static waiting_to_emit: Function[];
     static register_async_emit(fn: Function): void;
     subscribers: Set<WeakRef<(source: Subscribable<T>, value: T) => any> | FakeWeakRef<(source: Subscribable<T>, value: T) => any>> | undefined;
-    dependants: Set<WeakRef<Subscribable<any> | null>> | undefined;
+    dependants: Set<WeakRef<Subscribable<any>>> | undefined;
     /**
      * Subscribes a function to be called when the value of this Subscribable changes.
      * @param fn - The function to subscribe.

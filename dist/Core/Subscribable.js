@@ -29,13 +29,18 @@ export class Subscribable {
     // for each dependency that changed.
     static register_async_emit(fn) {
         if (this.waiting_to_emit.length <= 0) {
-            setImmediate(() => {
+            const a = () => {
                 const emits = this.waiting_to_emit;
                 this.waiting_to_emit = [];
                 for (let f of emits) {
                     f();
                 }
-            });
+            };
+            // setImmediate is faster but only works reliably in node
+            if (typeof process === 'object')
+                setImmediate(a);
+            else // firefox breaks terribly if setImmediate is used.
+                setTimeout(a, 0);
         }
         this.waiting_to_emit.push(fn);
     }
@@ -85,7 +90,7 @@ export class Subscribable {
             }
         }
         else {
-            this.dependants.delete(fn["$weakRef"]);
+            this.dependants?.delete(fn["$weakRef"]);
             delete fn["$weakRef"];
         }
         return this;

@@ -1,4 +1,4 @@
-import { NativeSignal } from "../Core/Signal";
+import { NativeSignal } from "../Core/NativeSignal";
 import { Computed } from "../Core/Computed";
 // TODO : Maps need to use the same entry in every single event or else we can't store related
 // state info.
@@ -15,14 +15,32 @@ export function reduce_generic(source, identityValue, opts, merger, mapper) {
     const output = opts.output ?? new NativeSignal(identityValue);
     const unpackSignals = opts.unpackSignals ?? false;
     const lazy = opts.lazy ?? false;
+    const dependencies = opts.dependencies;
     const cache = new Map();
+    let fully_dirty = false;
+    if (dependencies && dependencies.length > 0) {
+        const dependency_handler = {
+            dirty: function (source) {
+                fully_dirty = true;
+                output.dirty();
+            }
+        };
+        output["dependency_handler"] = dependency_handler; // Bind it so it GCs alongside the result
+        for (let dependency of dependencies)
+            dependency.subscribe(dependency_handler);
+    }
     if (lazy) {
-        const dirty = new Map();
+        let dirty = new Map();
         function lazy_apply(source, value) {
+            if (fully_dirty)
+                return;
             dirty.set(source, value);
+            output.dirty();
         }
         function apply_all_dirty() {
-            for (let kv of dirty.entries()) {
+            const dirty_values = (fully_dirty ? new Map([...source.get()].map(v => [v, v])) : dirty.entries());
+            dirty.clear();
+            for (let kv of dirty_values) {
                 const key = kv[0];
                 if (unpackSignals)
                     kv[1] = kv[1].get();
@@ -45,7 +63,7 @@ export function reduce_generic(source, identityValue, opts, merger, mapper) {
         }
         const original_get = output.get.bind(output);
         output.get = (...args) => {
-            if (dirty.size > 0)
+            if (apply_all_dirty || dirty.size > 0)
                 apply_all_dirty();
             return original_get(...args);
         };

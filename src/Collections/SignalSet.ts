@@ -1,6 +1,6 @@
 import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 import { Computed } from "../Core/Computed";
-import { NativeSignal, ReadonlySignal } from "../Core/Signal";
+import { NativeSignal, ReadonlySignal } from "../Core/NativeSignal";
 import { I_Subscribable, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 import type { I_NativeCollection } from "./Collection";
 
@@ -27,9 +27,7 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
     constructor(items?: Iterable<T> | null | undefined)
     {
         super();
-        this._internal = new Set(items);
-
-
+        this._internal = new Set(items ? [...items] : []);
     }
 
     get(): Set<T>

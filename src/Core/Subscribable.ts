@@ -68,15 +68,19 @@ export class Subscribable<T> implements I_Subscribable<T>
     {
         if(this.waiting_to_emit.length <= 0)
         {
-            setImmediate(()=>{
+            const a = ()=>{
                 const emits = this.waiting_to_emit;
                 this.waiting_to_emit = [];
                 for(let f of emits)
                 {
                     f();
                 }
-
-            });
+            }
+            // setImmediate is faster but only works reliably in node
+            if(typeof process === 'object')
+                setImmediate(a);
+            else // firefox breaks terribly if setImmediate is used.
+                setTimeout(a,0);
         }
         this.waiting_to_emit.push(fn);
     }
@@ -88,7 +92,7 @@ export class Subscribable<T> implements I_Subscribable<T>
         FakeWeakRef<(source:Subscribable<T>, value: T) => any>
     > | undefined;
 
-    dependants: Set<WeakRef<Subscribable<any>|null>> | undefined;
+    dependants: Set<WeakRef<Subscribable<any>>> | undefined;
 
     // readonly uid = uid();
 
@@ -168,7 +172,7 @@ export class Subscribable<T> implements I_Subscribable<T>
         }
         else
         {
-            this.dependants.delete((fn as any)["$weakRef"])
+            this.dependants?.delete((fn as any)["$weakRef"])
             delete (fn as any)["$weakRef"];
         }
 
@@ -230,7 +234,7 @@ export class Subscribable<T> implements I_Subscribable<T>
     promise():Promise<T>
     {
         let resolve: (arg0: T) => void;
-        const subscriber = (source:Subscribable<T>,v:T)=>{
+        const subscriber = (source:Dirtyable,v:T)=>{
             this.unsubscribe(subscriber);
             resolve(v);
         }

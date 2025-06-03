@@ -3,21 +3,18 @@
       "baseUrl": "./",
       "outDir": "./dist",
       "rootDir": "./src",
-      "paths": {
-        "native-signal/*": ["./src/*"]
-      },
       "declaration": true,
       "sourceMap": true,
       "forceConsistentCasingInFileNames": true,
       "strict": false,
-      "skipLibCheck": true, /* Skip type checking all .d.ts files. */
+      "skipLibCheck": true, // Don't fail if a typescript error happens at compile time
       "esModuleInterop": true,
       "moduleResolution": "node",
       "lib": ["ESNext", "ES2021.WeakRef"],
       "isolatedModules": false,
       "module": "ESNext",
-      "target": "ESNext",
+      "target": "ESNext"
     },
     "include": ["src/**/*"],
-    "exclude": ["node_modules","src/**/*.test.ts"]
+    "exclude": ["node_modules","src/**/*.test.ts"],
   }

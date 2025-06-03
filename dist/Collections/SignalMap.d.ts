@@ -1,5 +1,5 @@
 import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
-import { NativeSignal } from "../Core/Signal";
+import { NativeSignal } from "../Core/NativeSignal";
 import { I_Subscribable, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 import { I_NativeCollection } from "./Collection";
 export type MapEvents<K, T> = {

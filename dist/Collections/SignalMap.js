@@ -1,5 +1,5 @@
 import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
-import { NativeSignal } from "../Core/Signal";
+import { NativeSignal } from "../Core/NativeSignal";
 import { Subscribable } from "../Core/Subscribable";
 export class SignalMap extends Subscribable {
     _internal;
@@ -13,7 +13,7 @@ export class SignalMap extends Subscribable {
     constructor(items) {
         super();
         this._internal = new Map(items);
-        this._entries = new Map([...items].map(kv => [kv[0], kv]));
+        this._entries = new Map(items ? [...items].map(kv => [kv[0], kv]) : []);
     }
     get(key) {
         if (key) {
@@ -37,8 +37,11 @@ export class SignalMap extends Subscribable {
         let result = this._signals.get(key);
         if (!result) {
             let value = this.get(key);
-            this._signals.set(key, result = new NativeSignal(value));
-            const fn = (_, v) => {
+            result = new NativeSignal(value);
+            const original_set = result.set.bind(result);
+            this._signals.set(key, result);
+            const fn = (v) => {
+                original_set(v);
                 if (v === undefined) {
                     this.delete(key);
                 }
@@ -46,9 +49,7 @@ export class SignalMap extends Subscribable {
                     this.set(key, v);
                 }
             };
-            // Anchor fn to the signal, so it gets GC'ed when the signal does.
-            result["$refFn"] = fn;
-            result.subscribe(fn);
+            result.set = fn;
         }
         return result;
     }

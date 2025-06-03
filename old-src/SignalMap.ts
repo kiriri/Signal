@@ -17,7 +17,7 @@ export class SignalMap<K, V> extends Subscribable<Map<K, V>> implements Stateful
     constructor(items?: Iterable<[K, V]> | null | undefined)
     {
         super();
-        this._internal = new Map(items);
+        this._internal = new Map(items ?? []);
     }
 
     /**

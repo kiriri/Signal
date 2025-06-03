@@ -1,6 +1,6 @@
-import { NativeSignal } from "../Core/Signal";
+import { NativeSignal } from "../Core/NativeSignal";
 import { I_NativeCollection, ReqColTypes } from "./Collection";
-import { StatefulSubscribable } from "../Core/Subscribable";
+import { StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 /**
  *
  * @param source
@@ -14,6 +14,7 @@ export declare function reduce_generic(source: I_NativeCollection<any, any>, ide
     output?: StatefulSubscribable<typeof identityValue>;
     unpackSignals?: boolean;
     lazy?: boolean;
+    dependencies?: Subscribable<any>[];
 }, merger: (sourceItem: any, output: any, value: any, prev_value: any) => void, mapper?: (sourceItem: any) => any): StatefulSubscribable<any>;
 /**
  * It doesn't matter if we map changes to a single nativeSignal or a collection.

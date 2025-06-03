@@ -1,4 +1,4 @@
-import { NativeSignal } from "../Core/Signal";
+import { NativeSignal } from "../Core/NativeSignal";
 let intervals = new Map();
 const registry = new FinalizationRegistry((intervalId) => {
     clearInterval(intervalId);

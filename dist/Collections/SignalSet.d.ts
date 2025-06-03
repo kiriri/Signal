@@ -1,5 +1,5 @@
 import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
-import { ReadonlySignal } from "../Core/Signal";
+import { ReadonlySignal } from "../Core/NativeSignal";
 import { I_Subscribable, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 import type { I_NativeCollection } from "./Collection";
 export type SetEvents<T> = {

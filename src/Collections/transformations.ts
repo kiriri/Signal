@@ -1,4 +1,4 @@
-import { NativeSignal } from "../Core/Signal";
+import { NativeSignal } from "../Core/NativeSignal";
 import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 import { I_NativeCollection, ReqColTypes } from "./Collection";
 import { Computed } from "../Core/Computed";
@@ -27,7 +27,8 @@ export function reduce_generic(
     opts: {
         output?: StatefulSubscribable<typeof identityValue>,
         unpackSignals?: boolean,
-        lazy?: boolean
+        lazy?: boolean,
+        dependencies?: Subscribable<any>[]
     },
     merger: (sourceItem, output, value, prev_value) => void,
     mapper?: (sourceItem) => any
@@ -36,33 +37,56 @@ export function reduce_generic(
     const output = opts.output ?? new NativeSignal(identityValue);
     const unpackSignals = opts.unpackSignals ?? false;
     const lazy = opts.lazy ?? false;
+    const dependencies = opts.dependencies;
 
     const cache = new Map<typeof identityValue, {
         prev: any
     }>();
 
+    let fully_dirty = false;
 
+    if (dependencies && dependencies.length > 0)
+    {
+        const dependency_handler = {
+            dirty: function (source?: I_Subscribable<any>)
+            {
+                fully_dirty = true;
+                output.dirty();
+            }
+        }
+
+        output["dependency_handler"] = dependency_handler; // Bind it so it GCs alongside the result
+
+        for (let dependency of dependencies)
+            dependency.subscribe(dependency_handler);
+    }
 
     if (lazy)
     {
-        const dirty = new Map<typeof identityValue,typeof identityValue>();
+        let dirty = new Map<typeof identityValue, typeof identityValue>();
 
         function lazy_apply(source, value)
         {
-            dirty.set(source,value);
+            if(fully_dirty)
+                return;
+            dirty.set(source, value);
+            output.dirty();
         }
 
         function apply_all_dirty()
         {
-            for(let kv of dirty.entries())
+            const dirty_values = (fully_dirty ? new Map([...source.get()].map(v=>[v,v])) : dirty.entries());
+            dirty.clear();
+
+            for (let kv of dirty_values)
             {
                 const key = kv[0];
-                if(unpackSignals)
+                if (unpackSignals)
                     kv[1] = kv[1].get();
                 const value = mapper ? mapper?.(kv[1]) : kv[1];
                 let cacheItem = cache.get(key);
                 let prevValue;
-                if(!cacheItem)
+                if (!cacheItem)
                 {
                     if (unpackSignals)
                     {
@@ -77,13 +101,16 @@ export function reduce_generic(
                     cacheItem.prev = value;
                 }
 
-                merger(key,output,value, prevValue);
+                merger(key, output, value, prevValue);
             }
+
+            
         }
 
         const original_get = output.get.bind(output);
-        output.get = (...args)=>{
-            if(dirty.size > 0)
+        output.get = (...args) =>
+        {
+            if (apply_all_dirty || dirty.size > 0)
                 apply_all_dirty();
 
             return original_get(...args);
@@ -96,7 +123,7 @@ export function reduce_generic(
 
         function unlisten(signal: Subscribable<any>)
         {
-            if(cache.delete(signal))
+            if (cache.delete(signal))
             {
                 dirty.delete(signal);
                 signal.unsubscribe(lazy_apply);
@@ -107,7 +134,7 @@ export function reduce_generic(
         {
             lazy_apply(initial_value, initial_value)
         }
-    
+
 
         source._on_change_instant.subscribe((_, ve) =>
         {
@@ -118,10 +145,10 @@ export function reduce_generic(
                     // TODO : lazy only listens when get() is called for the first time
                     // it also only updates the value at that time, all changed entries at once. 
                     case "add":
-                        lazy_apply(ve.value,ve.value)
+                        lazy_apply(ve.value, ve.value)
                         break;
                     case "delete":
-                        lazy_apply(ve.value, unpackSignals ? {get(){return identityValue}} : identityValue);
+                        lazy_apply(ve.value, unpackSignals ? { get() { return identityValue } } : identityValue);
                         if (unpackSignals)
                         {
                             unlisten(ve["value"]);
@@ -144,21 +171,21 @@ export function reduce_generic(
             {
                 value = value.get();
             }
-    
+
             let state = cache.get(sourceItem);
             let prev_value = state?.prev ?? identityValue;
-    
+
             if (state)
                 state.prev = value;
             else
             {
                 cache.set(sourceItem, { prev: value });
             }
-                
-    
+
+
             merger(sourceItem, output, value, prev_value);
         }
-    
+
         for (let initial_value of source.get())
         {
             apply_value(initial_value, mapper?.(initial_value) ?? initial_value)
@@ -174,7 +201,7 @@ export function reduce_generic(
             signal.unsubscribe(apply_value);
             cache.delete(signal);
         }
-        
+
         source._on_change_instant.subscribe((_, ve) =>
         {
             switch (ve.event)
