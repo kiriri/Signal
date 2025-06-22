@@ -23,7 +23,13 @@ export class Computed extends Subscribable {
         this.fn = fn;
         this._eager = eager;
         // Instantly run the function to subscribe to the relevant dependencies.
-        this._cache = this._get();
+        if (eager) {
+            this._cache = this._get();
+        }
+        // don't subscribe unless someone shows interest by calling get() or subscribe()
+        else {
+            this._dirty = "first";
+        }
     }
     /**
      * Only propagates dirty state when its not already propagated
@@ -55,6 +61,13 @@ export class Computed extends Subscribable {
         if (this._dirty)
             return this._get();
         return this._cache;
+    }
+    subscribe(fn) {
+        if (this._dirty === "first") {
+            this._get(); // initialize subscribers 
+        }
+        super.subscribe(arguments[0]);
+        return this;
     }
     /**
      * Computes the current value of the computed signal and subscribes to any signals it depends on.

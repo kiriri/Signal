@@ -1,13 +1,13 @@
 {
   "name": "native-signal",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "description": "Similar to Angular's Signal system, but framework independent, fast, and with some collection support.",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "tsx --expose-gc ./src/Tests/NewTest.ts & tsx --expose-gc ./src/Tests/StressTest2.ts",
     "build": "rm ./dist -r && npx tsc",
     "build:lite": "npx tsc",
     "build:alt": "npx tsc ./src/index.ts --outDir ./dist --noCheck --sourceMap --declaration --declarationMap"
@@ -30,6 +30,7 @@
   },
   "homepage": "https://github.com/kiriri/Signal#readme",
   "devDependencies": {
+    "tsx": "^4.20.3",
     "typescript": "^5.8.3"
   }
 }

@@ -45,7 +45,7 @@ export class OrderNode<T> implements OrderNode<T>
 
         this._insertAfter(node);
 
-        this.order.on_change.emit({
+        this.order._on_change.emit({
             event:"add",
             value:this.value,
             node:this
@@ -67,7 +67,7 @@ export class OrderNode<T> implements OrderNode<T>
 
         this._insertBefore(node);
 
-        this.order.on_change.emit({
+        this.order._on_change.emit({
             event:"add",
             value:this.value,
             node:this
@@ -102,7 +102,7 @@ export class OrderNode<T> implements OrderNode<T>
 
         reference.next = this;
 
-        this.order.on_change.emit({
+        this.order._on_change.emit({
             event:"move",
             value:this as any,
             prevNext,
@@ -141,7 +141,7 @@ export class OrderNode<T> implements OrderNode<T>
         
         this.order.nodes.delete(this.value);
 
-        this.order.on_change.emit({
+        this.order._on_change.emit({
             event:"delete",
             value:this.value,
             node:this
@@ -180,12 +180,12 @@ export type OrderEvents<T> = {
 };
 
 
-export class Order<T> extends Subscribable<Map<T, OrderNode<T>>> implements I_NativeCollection<T, OrderEvents<T>>
+export class Order<T> extends Subscribable<Map<T, OrderNode<T>>,OrderEvents<T>> implements I_NativeCollection<T, OrderEvents<T>>
 {
     nodes: Map<T,OrderNode<T>> = new Map();
     first: OrderNode<T> = null;
     last: OrderNode<T> = null;
-    on_change: BufferedSubscribable<OrderEvents<T>[keyof OrderEvents<T>]> = new BufferedSubscribable();
+    _on_change: BufferedSubscribable<OrderEvents<T>[keyof OrderEvents<T>]> = new BufferedSubscribable();
     _on_change_instant = new Subscribable<OrderEvents<T>[keyof OrderEvents<T>]>;
 
     get()
@@ -222,7 +222,7 @@ export class Order<T> extends Subscribable<Map<T, OrderNode<T>>> implements I_Na
         if(this.last !== node)
             this.last._insertAfter(node);
 
-        this.on_change.emit({
+        this._on_change.emit({
             event:"add",
             value:node.value,
             node
@@ -245,7 +245,7 @@ export class Order<T> extends Subscribable<Map<T, OrderNode<T>>> implements I_Na
         if(this.first !== node)
             this.first._insertBefore(node);
 
-        this.on_change.emit({
+        this._on_change.emit({
             event:"add",
             value:node.value,
             node
@@ -281,7 +281,7 @@ export class Order<T> extends Subscribable<Map<T, OrderNode<T>>> implements I_Na
 
         for(let node of nodes.values())
         {
-            this.on_change.emit({
+            this._on_change.emit({
                 event:"delete",
                 value:node.value,
                 node

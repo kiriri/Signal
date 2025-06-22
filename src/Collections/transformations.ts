@@ -28,16 +28,18 @@ export function reduce_generic(
         output?: StatefulSubscribable<typeof identityValue>,
         unpackSignals?: boolean,
         lazy?: boolean,
-        dependencies?: Subscribable<any>[]
-    },
-    merger: (sourceItem, output, value, prev_value) => void,
-    mapper?: (sourceItem) => any
+        dependencies?: Subscribable<any>[],
+        merger: (sourceItem, output, value, prev_value) => void,
+        mapper?: (sourceItem) => any
+    }
 )
 {
     const output = opts.output ?? new NativeSignal(identityValue);
     const unpackSignals = opts.unpackSignals ?? false;
     const lazy = opts.lazy ?? false;
     const dependencies = opts.dependencies;
+    const merger = opts.merger;
+    const mapper = opts.mapper;
 
     const cache = new Map<typeof identityValue, {
         prev: any
@@ -61,6 +63,8 @@ export function reduce_generic(
             dependency.subscribe(dependency_handler);
     }
 
+    // Lazy Mode. Avoid duplicate mapper/merger calls for entries which change multiple times within the same async time slice.
+    // This is significantly faster if you make many changes at a time.
     if (lazy)
     {
         let dirty = new Map<typeof identityValue, typeof identityValue>();
@@ -136,7 +140,7 @@ export function reduce_generic(
         }
 
 
-        source._on_change_instant.subscribe((_, ve) =>
+        source.subscribe_event((_, ve) =>
         {
             if (lazy)
             {
@@ -162,6 +166,7 @@ export function reduce_generic(
             }
         });
     }
+    // Non Lazy Mode : As soon as a change occurs, mapper and merger get called. 
     else
     {
 
@@ -169,7 +174,7 @@ export function reduce_generic(
         {
             if (unpack)
             {
-                value = value.get();
+                value = value?.get(); // can be undefined if the value was removed from the source collection and the change event triggered before the delete one did.
             }
 
             let state = cache.get(sourceItem);
@@ -202,34 +207,37 @@ export function reduce_generic(
             cache.delete(signal);
         }
 
-        source._on_change_instant.subscribe((_, ve) =>
+        source.subscribe_event((_, ve) =>
         {
+            let original_value = ve["value"];
+            let value = mapper ? mapper(original_value) : original_value;
             switch (ve.event)
             {
                 case "add":
-                    apply_value(ve["value"], mapper?.(ve["value"]) ?? ve["value"]);
+                    
+                    apply_value(original_value, value);
                     if (unpackSignals)
                     {
-                        listen(ve["value"]);
+                        listen(original_value);
                     }
                     break;
                 case "delete":
                     if (unpackSignals)
                     {
-                        unlisten(ve["value"]);
+                        unlisten(original_value);
                     }
                     else
                     {
-                        apply_value(ve["value"], identityValue, false);
+                        apply_value(original_value, identityValue, false);
                     }
                     break;
                 case "update":
-                    apply_value(ve["value"], mapper?.(ve["value"]) ?? ve["value"]);
+                    apply_value(original_value, value);
                     if (unpackSignals)
                     {
                         throw new Error("Unpack Signals w/ update events not implemented yet! How do we unsubscribe from the old signal then?")
-                        // unlisten(ve["value"]);
-                        // listen(ve["value"]);
+                        // unlisten(original_value);
+                        // listen(original_value);
                     }
                     break
                 default: break;
@@ -473,7 +481,7 @@ export function reduce_fast<
             dependency.subscribe(dependency_handler);
     }
 
-    producer._on_change_instant.subscribe((_, ve) =>
+    producer.subscribe_event((_, ve) =>
     {
         // fully dirty will calculate all entries from scratch the next time
         // the result's get() function is called.
@@ -545,7 +553,7 @@ export function reduce<
     for (let i = 0; i < values.length; i++)
         listen(values[i]);
 
-    producer._on_change_instant.subscribe((_, ve) =>
+    producer.subscribe_event((_, ve) =>
     {
         if (ve['event'] === "add")
             listen(ve['value']);

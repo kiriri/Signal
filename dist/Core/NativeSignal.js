@@ -55,6 +55,7 @@ export class NativeSignal extends Subscribable {
         return this;
     }
     emit(value = this._value) {
+        this.queued = false;
         return super.emit(value);
     }
 }

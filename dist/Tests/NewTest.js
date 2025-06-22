@@ -1,5 +1,5 @@
 // npx tsx --expose-gc ./Tests/NewTest.ts
-import { SignalSet, SignalMap, Order, count, count_fast } from "src/Collections";
+import { SignalSet, SignalMap, Order, count } from "src/Collections";
 import { NativeSignal, Computed } from "src/Core";
 import { Interval } from "src/Events";
 import { Effect } from "src/Sinks";
@@ -44,6 +44,8 @@ const tests = [];
 async function runTests() {
     for (let test of tests) {
         await test();
+        gc();
+        await wait(100);
         gc();
         await wait(100);
         gc();
@@ -153,6 +155,7 @@ tests.push(async function test3() {
  * Effects and deep Computed
  */
 tests.push(async function test3() {
+    console.log("First ", finalized.length);
     const INITIAL_VALUE = 1;
     async function scope1() {
         let operations = 0;
@@ -247,13 +250,14 @@ tests.push(async function test3() {
     assertSetSize(1, set1);
     // allow gc to clean up everything inside
     async function scope1() {
-        let did_emit;
+        let did_emit = [];
         const cbk = (sig, v) => {
-            did_emit = v;
+            console.log("cbk ", v);
+            did_emit.push(v);
         };
         // increment the gc counter when the callback function is recycled.
         finalizer.register(cbk, "Cbk");
-        set1.on_change.subscribe(cbk);
+        set1.subscribe_event(cbk);
         set1.add(signal2);
         assertSetSize(2, set1);
         set1.add(signal2);
@@ -269,7 +273,7 @@ tests.push(async function test3() {
             || did_emit[0].value !== signal2
             || did_emit[1].event !== "delete"
             || did_emit[1].value !== signal1) {
-            console.log(did_emit);
+            console.log('res', did_emit);
             throw new Error("Didn't emit expected values");
         }
     }
@@ -298,13 +302,13 @@ tests.push(async function test3() {
     assertSetSize(1, map1);
     // allow gc to clean up everything inside
     async function scope1() {
-        let did_emit;
+        let did_emit = [];
         const cbk = (sig, v) => {
-            did_emit = v;
+            did_emit.push(v);
         };
         // increment the gc counter when the callback function is recycled.
         finalizer.register(cbk, "Cbk");
-        map1.on_change.subscribe(cbk);
+        map1.subscribe_event(cbk);
         map1.set("2", signal2);
         assertSetSize(2, map1);
         map1.set("2", signal2);
@@ -322,7 +326,7 @@ tests.push(async function test3() {
             || did_emit[1].event !== "delete"
             || did_emit[1].value[0] !== "1"
             || did_emit[1].value[1] !== signal1) {
-            console.log(did_emit);
+            console.log('res', did_emit);
             throw new Error("Didn't emit expected values");
         }
     }
@@ -386,23 +390,26 @@ tests.push(async function OrderTest() {
 /**
  * Generic Fast Reduce (count)
  */
-tests.push(async function OrderTest2() {
-    const order = new Order();
-    order.push(1);
-    order.push(2);
-    order.push(3);
-    const order_count = count_fast(order, (v) => {
-        switch (v.event) {
-            case 'add': return v.value;
-            case 'delete': return -v.value;
-        }
-        return 0;
-    }, []);
-    assertValue(6, order_count);
-    order.push(4);
-    order.push(5);
-    assertValue(15, order_count);
-});
+// tests.push(async function OrderTest2()
+// {
+//     const order = new Order<number>();
+//     order.push(1);
+//     order.push(2);
+//     order.push(3);
+//     const order_count = count_fast(order,(v: { event: "add"|"delete"; value: number; })=>{
+//         switch(v.event)
+//         {
+//             case 'add': return (v.value as number);
+//             case 'delete': return -(v.value as number);
+//         }
+//         return 0;
+//     },[]);
+//     assertValue(6,order_count);
+//     order.push(4);
+//     order.push(5);
+//     assertValue(15,order_count);
+// }
+// );
 // Test Filtered Sets
 // tests.push(async function test3()
 // {

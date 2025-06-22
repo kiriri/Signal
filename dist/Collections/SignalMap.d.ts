@@ -1,4 +1,3 @@
-import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 import { NativeSignal } from "../Core/NativeSignal";
 import { I_Subscribable, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 import { I_NativeCollection } from "./Collection";
@@ -12,24 +11,9 @@ export type MapEvents<K, T> = {
         value: [K, T];
     };
 };
-export declare class SignalMap<K, V> extends Subscribable<Map<K, V>> implements StatefulSubscribable<Map<K, V>>, I_NativeCollection<[K, V], MapEvents<K, V>> {
+export declare class SignalMap<K, V> extends Subscribable<Map<K, V>, MapEvents<K, V>> implements StatefulSubscribable<Map<K, V>>, I_NativeCollection<[K, V], MapEvents<K, V>> {
     readonly _internal: Map<K, V>;
-    readonly _entries: Map<K, [K, V]>;
     _signals: Map<K, NativeSignal<V | undefined>> | undefined;
-    on_change: BufferedSubscribable<{
-        event: "add";
-        value: [K, V];
-    } | {
-        event: "delete";
-        value: [K, V];
-    }>;
-    _on_change_instant: Subscribable<{
-        event: "add";
-        value: [K, V];
-    } | {
-        event: "delete";
-        value: [K, V];
-    }>;
     constructor(items?: Iterable<[K, V]> | null | undefined);
     /**
      * Get the underlying Map object according to the StatefulSubscribable Syntax.

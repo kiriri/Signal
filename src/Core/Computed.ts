@@ -15,7 +15,7 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
     // The function that is called to compute the current value of this Subscribable.
     fn: () => T;
 
-    _dirty = true;
+    _dirty : boolean | "first" = true;
     _cache !: T;
     _eager !: boolean;
 
@@ -32,7 +32,15 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
         this._eager = eager;
 
         // Instantly run the function to subscribe to the relevant dependencies.
-        this._cache = this._get();
+        if(eager)
+        {
+            this._cache = this._get();
+        }
+        // don't subscribe unless someone shows interest by calling get() or subscribe()
+        else
+        {
+            this._dirty = "first";
+        }
     }
 
     /**
@@ -74,6 +82,22 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
             return this._get();
 
         return this._cache;
+    }
+
+    override subscribe(subscribable: Dirtyable): this;
+    override subscribe(subscribable: (source: I_Subscribable<T>, value: T) => any | void): this;
+    override subscribe(fn: ((source: I_Subscribable<T>, value: T) => any | void) | Dirtyable): this
+    {
+
+        if(this._dirty === "first")
+        {
+            this._get();  // initialize subscribers 
+        }
+
+        super.subscribe(arguments[0]);
+
+        
+        return this;
     }
 
     /**

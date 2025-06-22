@@ -14,23 +14,29 @@ export type MapEvents<K,T> = {
     }
 };
 
-export class SignalMap<K, V> extends Subscribable<Map<K, V>> implements StatefulSubscribable<Map<K, V>>, I_NativeCollection<[K,V],MapEvents<K,V>>
+
+export class SignalMap<K, V> 
+extends Subscribable<Map<K, V>,MapEvents<K,V>> 
+implements StatefulSubscribable<Map<K, V>>, I_NativeCollection<[K,V],MapEvents<K,V>>
 {
     readonly _internal: Map<K, V>;
-    readonly _entries: Map<K, [K,V]>;
+    // readonly _entries: Map<K, [K,V]>;
     _signals: Map<K, NativeSignal<V | undefined>> | undefined = undefined;
 
-    on_change = new BufferedSubscribable<MapEvents<K,V>[keyof MapEvents<K,V>]>();
-    _on_change_instant = new Subscribable<MapEvents<K,V>[keyof MapEvents<K,V>]>();
-    // TODO : return a signal which, using an external predicate function, 
-    // tracks the number of entries which are true. (computed deeply)
-    // This should use the on_add/delete subscribables to stay up to date. 
+    // TODO : This is unnecessarily expensive.
+    // _on_change = new BufferedSubscribable<MapEvents<K,V>[keyof MapEvents<K,V>]>();
+    // _on_change_instant = new Subscribable<MapEvents<K,V>[keyof MapEvents<K,V>]>();
 
     constructor(items?: Iterable<[K, V]> | null | undefined)
     {
         super();
-        this._internal = new Map(items);
-        this._entries = new Map(items ? [...items].map(kv=>[kv[0],kv]) : []);
+        this._internal = new Map();
+        if(items)
+        {
+            // cheaper for few items, unknown for large counts.
+            for(let item of items)
+                this._internal.set(item[0],item[1]);
+        }
     }
 
     /**
@@ -115,13 +121,13 @@ export class SignalMap<K, V> extends Subscribable<Map<K, V>> implements Stateful
         {
             const kv : [K,V] = [key,value];
             this._internal.set(key, value);
-            this._entries.set(key,kv);
+            // this._entries.set(key,kv);
             this._signals?.get(key)?.set(value);
 
             if (exists === undefined)
             {
-                this.on_change.emit({ event: "add", value:kv });
-                this._on_change_instant.emit({ event: "add", value:kv });
+                this.emit_event({ event: "add", value:kv });
+                // this._on_change_instant.emit({ event: "add", value:kv });
             }
 
             this.dirty();
@@ -134,32 +140,31 @@ export class SignalMap<K, V> extends Subscribable<Map<K, V>> implements Stateful
     }
     delete(key: K)
     {
+        let v = this._internal.get(key)!;
         if (this._internal.delete(key))
         {
-            let kv = this._entries.get(key)!;
-            this._entries.delete(key);
+            const kv : [K,V] = [key,v] ;
             let signal = this._signals?.get(key);
             if (signal?.get() !== undefined)
                 signal?.set(undefined);
-            this.on_change.emit({ event: "delete", value:kv });
-            this._on_change_instant.emit({ event: "delete", value:kv });
+            this.emit_event({ event: "delete", value:kv });
+            // this._on_change_instant.emit({ event: "delete", value:kv });
             this.dirty();
         }
     }
 
     clear()
     {
+        const entries = this._internal.entries();
         this._internal.clear();
-        const entries = this._entries.values();
-        this._entries.clear();
 
         for (let kv of entries)
         {
             const reference = this._signals?.get(kv[0]);
             if(reference)
                 reference.set(undefined);
-            this.on_change.emit({ event: "delete", value:kv });
-            this._on_change_instant.emit({ event: "delete", value:kv });
+            this.emit_event({ event: "delete", value:kv });
+            // this._on_change_instant.emit({ event: "delete", value:kv });
         }
 
         this.dirty();

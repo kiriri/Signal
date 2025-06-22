@@ -15,7 +15,9 @@ export declare function reduce_generic(source: I_NativeCollection<any, any>, ide
     unpackSignals?: boolean;
     lazy?: boolean;
     dependencies?: Subscribable<any>[];
-}, merger: (sourceItem: any, output: any, value: any, prev_value: any) => void, mapper?: (sourceItem: any) => any): StatefulSubscribable<any>;
+    merger: (sourceItem: any, output: any, value: any, prev_value: any) => void;
+    mapper?: (sourceItem: any) => any;
+}): StatefulSubscribable<any>;
 /**
  * It doesn't matter if we map changes to a single nativeSignal or a collection.
  * Just provide the output directly, and the way that changes are merged into it.

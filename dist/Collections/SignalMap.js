@@ -1,19 +1,20 @@
-import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 import { NativeSignal } from "../Core/NativeSignal";
 import { Subscribable } from "../Core/Subscribable";
 export class SignalMap extends Subscribable {
     _internal;
-    _entries;
+    // readonly _entries: Map<K, [K,V]>;
     _signals = undefined;
-    on_change = new BufferedSubscribable();
-    _on_change_instant = new Subscribable();
-    // TODO : return a signal which, using an external predicate function, 
-    // tracks the number of entries which are true. (computed deeply)
-    // This should use the on_add/delete subscribables to stay up to date. 
+    // TODO : This is unnecessarily expensive.
+    // _on_change = new BufferedSubscribable<MapEvents<K,V>[keyof MapEvents<K,V>]>();
+    // _on_change_instant = new Subscribable<MapEvents<K,V>[keyof MapEvents<K,V>]>();
     constructor(items) {
         super();
-        this._internal = new Map(items);
-        this._entries = new Map(items ? [...items].map(kv => [kv[0], kv]) : []);
+        this._internal = new Map();
+        if (items) {
+            // cheaper for few items, unknown for large counts.
+            for (let item of items)
+                this._internal.set(item[0], item[1]);
+        }
     }
     get(key) {
         if (key) {
@@ -65,11 +66,11 @@ export class SignalMap extends Subscribable {
         if (exists !== value) {
             const kv = [key, value];
             this._internal.set(key, value);
-            this._entries.set(key, kv);
+            // this._entries.set(key,kv);
             this._signals?.get(key)?.set(value);
             if (exists === undefined) {
-                this.on_change.emit({ event: "add", value: kv });
-                this._on_change_instant.emit({ event: "add", value: kv });
+                this.emit_event({ event: "add", value: kv });
+                // this._on_change_instant.emit({ event: "add", value:kv });
             }
             this.dirty();
         }
@@ -78,27 +79,26 @@ export class SignalMap extends Subscribable {
         this.delete(value[0]);
     }
     delete(key) {
+        let v = this._internal.get(key);
         if (this._internal.delete(key)) {
-            let kv = this._entries.get(key);
-            this._entries.delete(key);
+            const kv = [key, v];
             let signal = this._signals?.get(key);
             if (signal?.get() !== undefined)
                 signal?.set(undefined);
-            this.on_change.emit({ event: "delete", value: kv });
-            this._on_change_instant.emit({ event: "delete", value: kv });
+            this.emit_event({ event: "delete", value: kv });
+            // this._on_change_instant.emit({ event: "delete", value:kv });
             this.dirty();
         }
     }
     clear() {
+        const entries = this._internal.entries();
         this._internal.clear();
-        const entries = this._entries.values();
-        this._entries.clear();
         for (let kv of entries) {
             const reference = this._signals?.get(kv[0]);
             if (reference)
                 reference.set(undefined);
-            this.on_change.emit({ event: "delete", value: kv });
-            this._on_change_instant.emit({ event: "delete", value: kv });
+            this.emit_event({ event: "delete", value: kv });
+            // this._on_change_instant.emit({ event: "delete", value:kv });
         }
         this.dirty();
     }

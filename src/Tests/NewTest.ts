@@ -74,6 +74,9 @@ async function runTests()
         gc();
         await wait(100);
         gc();
+        await wait(100);
+        gc();
+
         finalized.length = 0;
     }
 
@@ -242,6 +245,9 @@ tests.push(async function test3()
  */
 tests.push(async function test3()
 {
+
+    console.log("First ", finalized.length)
+
     const INITIAL_VALUE = 1;
 
     async function scope1()
@@ -388,17 +394,18 @@ tests.push(async function test3()
     // allow gc to clean up everything inside
     async function scope1()
     {
-        let did_emit: { event: "add" | "delete"; value: NativeSignal<number>; }[];
+        let did_emit: { event: "add" | "delete"; value: NativeSignal<number>; }[] = [];
 
         const cbk = (sig, v) =>
         {
-            did_emit = v;
+            console.log("cbk ", v)
+            did_emit.push(v);
         };
 
         // increment the gc counter when the callback function is recycled.
         finalizer.register(cbk, "Cbk");
 
-        set1.on_change.subscribe(cbk);
+        set1.subscribe_event(cbk);
 
         set1.add(signal2);
 
@@ -428,7 +435,7 @@ tests.push(async function test3()
             || did_emit[1].value !== signal1
         )
         {
-            console.log(did_emit);
+            console.log('res',did_emit);
             throw new Error("Didn't emit expected values");
         }
 
@@ -475,17 +482,17 @@ tests.push(async function test3()
     // allow gc to clean up everything inside
     async function scope1()
     {
-        let did_emit: { event: "add" | "delete"; key:string, value: NativeSignal<number>; }[];
+        let did_emit: { event: "add" | "delete"; key:string, value: NativeSignal<number>; }[] = [];
 
         const cbk = (sig, v) =>
         {
-            did_emit = v;
+            did_emit.push(v);
         };
 
         // increment the gc counter when the callback function is recycled.
         finalizer.register(cbk, "Cbk");
 
-        map1.on_change.subscribe(cbk);
+        map1.subscribe_event(cbk);
 
         map1.set("2",signal2);
 
@@ -517,7 +524,7 @@ tests.push(async function test3()
             || did_emit[1].value[1] !== signal1
         )
         {
-            console.log(did_emit);
+            console.log('res',did_emit);
             throw new Error("Didn't emit expected values");
         }
 
@@ -614,31 +621,31 @@ tests.push(async function OrderTest()
 /**
  * Generic Fast Reduce (count)
  */
-tests.push(async function OrderTest2()
-{
-    const order = new Order<number>();
-    order.push(1);
-    order.push(2);
-    order.push(3);
+// tests.push(async function OrderTest2()
+// {
+//     const order = new Order<number>();
+//     order.push(1);
+//     order.push(2);
+//     order.push(3);
 
-    const order_count = count_fast(order,(v: { event: "add"|"delete"; value: number; })=>{
-        switch(v.event)
-        {
-            case 'add': return (v.value as number);
-            case 'delete': return -(v.value as number);
-        }
+//     const order_count = count_fast(order,(v: { event: "add"|"delete"; value: number; })=>{
+//         switch(v.event)
+//         {
+//             case 'add': return (v.value as number);
+//             case 'delete': return -(v.value as number);
+//         }
 
-        return 0;
-    },[]);
+//         return 0;
+//     },[]);
 
-    assertValue(6,order_count);
+//     assertValue(6,order_count);
 
-    order.push(4);
-    order.push(5);
+//     order.push(4);
+//     order.push(5);
 
-    assertValue(15,order_count);
-}
-);
+//     assertValue(15,order_count);
+// }
+// );
 
 
 

@@ -5,7 +5,7 @@ import { Dirtyable, I_Subscribable, StatefulSubscribable, Subscribable } from ".
 export declare class Computed<T> extends Subscribable<T> implements StatefulSubscribable<T>, Dirtyable {
     subscribed_to: Map<Subscribable<any>, number>;
     fn: () => T;
-    _dirty: boolean;
+    _dirty: boolean | "first";
     _cache: T;
     _eager: boolean;
     /**
@@ -23,6 +23,8 @@ export declare class Computed<T> extends Subscribable<T> implements StatefulSubs
      */
     dirty(source?: I_Subscribable<any>): this;
     get(): T;
+    subscribe(subscribable: Dirtyable): this;
+    subscribe(subscribable: (source: I_Subscribable<T>, value: T) => any | void): this;
     /**
      * Computes the current value of the computed signal and subscribes to any signals it depends on.
      * @returns The current value of the computed signal.

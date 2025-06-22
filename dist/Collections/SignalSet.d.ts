@@ -1,4 +1,3 @@
-import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 import { ReadonlySignal } from "../Core/NativeSignal";
 import { I_Subscribable, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 import type { I_NativeCollection } from "./Collection";
@@ -12,22 +11,8 @@ export type SetEvents<T> = {
         value: T;
     };
 };
-export declare class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscribable<Set<T>>, I_NativeCollection<T, SetEvents<T>> {
+export declare class SignalSet<T> extends Subscribable<Set<T>, SetEvents<T>> implements StatefulSubscribable<Set<T>>, I_NativeCollection<T, SetEvents<T>> {
     readonly _internal: Set<T>;
-    on_change: BufferedSubscribable<{
-        event: "add";
-        value: T;
-    } | {
-        event: "delete";
-        value: T;
-    }>;
-    _on_change_instant: Subscribable<{
-        event: "add";
-        value: T;
-    } | {
-        event: "delete";
-        value: T;
-    }>;
     constructor(items?: Iterable<T> | null | undefined);
     get(): Set<T>;
     _add(value: T): void;

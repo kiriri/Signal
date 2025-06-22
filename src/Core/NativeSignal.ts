@@ -77,6 +77,7 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
 
     override emit(value: T = this._value)
     {
+        this.queued = false;
         return super.emit(value);
     }
 }

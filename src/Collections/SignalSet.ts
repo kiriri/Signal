@@ -15,19 +15,26 @@ export type SetEvents<T> = {
     }
 };
 
-export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscribable<Set<T>>, I_NativeCollection<T,SetEvents<T>>
+export class SignalSet<T> extends Subscribable<Set<T>,SetEvents<T>> implements StatefulSubscribable<Set<T>>, I_NativeCollection<T,SetEvents<T>>
 {
     readonly _internal: Set<T>;
 
     // We're using on_change instead of on_add + on_delete so transactions which
     // add and delete the same value in a short time can be historialized in sequence in one buffer.
-    on_change = new BufferedSubscribable<SetEvents<T>[keyof SetEvents<T>]>();
-    _on_change_instant = new Subscribable<SetEvents<T>[keyof SetEvents<T>]>();
+    // _on_change = new BufferedSubscribable<SetEvents<T>[keyof SetEvents<T>]>();
+    // _on_change_instant = new Subscribable<SetEvents<T>[keyof SetEvents<T>]>();
 
     constructor(items?: Iterable<T> | null | undefined)
     {
         super();
-        this._internal = new Set(items ? [...items] : []);
+        this._internal = new Set();
+        if(items)
+        {
+            for(let item of items)
+            {
+                this._internal.add(item);
+            }
+        }
     }
 
     get(): Set<T>
@@ -48,8 +55,8 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
         if (!exists)
         {
             this._internal.add(value);
-            this.on_change.emit({ event: "add", value })
-            this._on_change_instant.emit({ event: "add", value })
+            this.emit_event({ event: "add", value })
+            // this._on_change_instant.emit({ event: "add", value })
             this.dirty();
         }
     }
@@ -62,8 +69,8 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
     {
         if (this._internal.delete(value))
         {
-            this.on_change.emit({ event: "delete", value })
-            this._on_change_instant.emit({ event: "delete", value })
+            this.emit_event({ event: "delete", value })
+            // this._on_change_instant.emit({ event: "delete", value })
             this.dirty();
         }
     }
@@ -76,8 +83,8 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
 
         for (let value of values)
         {
-            this.on_change.emit({ event: "delete", value })
-            this._on_change_instant.emit({ event: "delete", value })
+            this.emit_event({ event: "delete", value })
+            // this._on_change_instant.emit({ event: "delete", value })
         }
 
         this.dirty();
@@ -144,7 +151,7 @@ export class SignalSet<T> extends Subscribable<Set<T>> implements StatefulSubscr
         }
 
 
-        this._on_change_instant.subscribe((_,ve: { value: T, event: "add" | "delete" }) =>
+        this.subscribe_event((_,ve: { value: T, event: "add" | "delete" }) =>
         {
             let { value, event } = ve;
             if (event === "add")

@@ -26,12 +26,19 @@ export interface I_Subscribable<T> {
 /**
  * Represents a subscribable value that can be observed for changes.
  */
-export declare class Subscribable<T> implements I_Subscribable<T> {
-    static global_listeners: Subscribable<any>[];
+export declare class Subscribable<T, Events extends Record<string, {
+    event: string;
+    value: any;
+}> = {}> implements I_Subscribable<T> {
+    static global_listeners: Subscribable<any, any>[];
     static waiting_to_emit: Function[];
     static register_async_emit(fn: Function): void;
-    subscribers: Set<WeakRef<(source: Subscribable<T>, value: T) => any> | FakeWeakRef<(source: Subscribable<T>, value: T) => any>> | undefined;
-    dependants: Set<WeakRef<Subscribable<any>>> | undefined;
+    subscribers: Set<WeakRef<(source: Subscribable<T, any>, value: T) => any> | FakeWeakRef<(source: Subscribable<T, any>, value: T) => any>> | undefined;
+    dependants: Set<WeakRef<Subscribable<any, any>>> | undefined;
+    events: Record<string, ((source: Subscribable<any, any>, event: Events[keyof Events]) => any)[]> | undefined;
+    events2: (WeakRef<(source: Subscribable<any, any>, event: Events[keyof Events]) => any>)[] | undefined;
+    subscribe_event<K extends keyof Event>(fn: (source: Subscribable<any, any>, event: Events[K]) => any, event?: K): this;
+    emit_event<K extends keyof Event>(event: Events[K]): this;
     /**
      * Subscribes a function to be called when the value of this Subscribable changes.
      * @param fn - The function to subscribe.

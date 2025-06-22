@@ -27,7 +27,7 @@ export class OrderNode {
     insertAfter(value) {
         let node = this.order._createNode(value);
         this._insertAfter(node);
-        this.order.on_change.emit({
+        this.order._on_change.emit({
             event: "add",
             value: this.value,
             node: this
@@ -43,7 +43,7 @@ export class OrderNode {
     insertBefore(value) {
         let node = this.order._createNode(value);
         this._insertBefore(node);
-        this.order.on_change.emit({
+        this.order._on_change.emit({
             event: "add",
             value: this.value,
             node: this
@@ -70,7 +70,7 @@ export class OrderNode {
         this.prev = reference;
         this.next = reference.next;
         reference.next = this;
-        this.order.on_change.emit({
+        this.order._on_change.emit({
             event: "move",
             value: this,
             prevNext,
@@ -102,7 +102,7 @@ export class OrderNode {
         this.next = null;
         this.prev = null;
         this.order.nodes.delete(this.value);
-        this.order.on_change.emit({
+        this.order._on_change.emit({
             event: "delete",
             value: this.value,
             node: this
@@ -120,7 +120,7 @@ export class Order extends Subscribable {
     nodes = new Map();
     first = null;
     last = null;
-    on_change = new BufferedSubscribable();
+    _on_change = new BufferedSubscribable();
     _on_change_instant = new Subscribable;
     get() {
         // TODO : Cache this! Clear cache on change.
@@ -144,7 +144,7 @@ export class Order extends Subscribable {
         let node = this._createNode(value);
         if (this.last !== node)
             this.last._insertAfter(node);
-        this.on_change.emit({
+        this._on_change.emit({
             event: "add",
             value: node.value,
             node
@@ -161,7 +161,7 @@ export class Order extends Subscribable {
         let node = this._createNode(value);
         if (this.first !== node)
             this.first._insertBefore(node);
-        this.on_change.emit({
+        this._on_change.emit({
             event: "add",
             value: node.value,
             node
@@ -186,7 +186,7 @@ export class Order extends Subscribable {
         this.first = null;
         this.last = null;
         for (let node of nodes.values()) {
-            this.on_change.emit({
+            this._on_change.emit({
                 event: "delete",
                 value: node.value,
                 node

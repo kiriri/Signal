@@ -41,11 +41,11 @@ export type OrderEvents<T> = {
         prevNext: OrderNode<T> | null;
     };
 };
-export declare class Order<T> extends Subscribable<Map<T, OrderNode<T>>> implements I_NativeCollection<T, OrderEvents<T>> {
+export declare class Order<T> extends Subscribable<Map<T, OrderNode<T>>, OrderEvents<T>> implements I_NativeCollection<T, OrderEvents<T>> {
     nodes: Map<T, OrderNode<T>>;
     first: OrderNode<T>;
     last: OrderNode<T>;
-    on_change: BufferedSubscribable<OrderEvents<T>[keyof OrderEvents<T>]>;
+    _on_change: BufferedSubscribable<OrderEvents<T>[keyof OrderEvents<T>]>;
     _on_change_instant: Subscribable<{
         event: "add";
         node: OrderNode<T>;
@@ -59,7 +59,7 @@ export declare class Order<T> extends Subscribable<Map<T, OrderNode<T>>> impleme
         value: T;
         prevPrev: OrderNode<T>;
         prevNext: OrderNode<T>;
-    }>;
+    }, {}>;
     get(): T[];
     _createNode(value: T): OrderNode<T>;
     _delete(value: T): void;

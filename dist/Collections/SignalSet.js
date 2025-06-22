@@ -1,4 +1,3 @@
-import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 import { Computed } from "../Core/Computed";
 import { NativeSignal } from "../Core/NativeSignal";
 import { Subscribable } from "../Core/Subscribable";
@@ -6,11 +5,16 @@ export class SignalSet extends Subscribable {
     _internal;
     // We're using on_change instead of on_add + on_delete so transactions which
     // add and delete the same value in a short time can be historialized in sequence in one buffer.
-    on_change = new BufferedSubscribable();
-    _on_change_instant = new Subscribable();
+    // _on_change = new BufferedSubscribable<SetEvents<T>[keyof SetEvents<T>]>();
+    // _on_change_instant = new Subscribable<SetEvents<T>[keyof SetEvents<T>]>();
     constructor(items) {
         super();
-        this._internal = new Set(items ? [...items] : []);
+        this._internal = new Set();
+        if (items) {
+            for (let item of items) {
+                this._internal.add(item);
+            }
+        }
     }
     get() {
         if (Subscribable.global_listeners)
@@ -24,8 +28,8 @@ export class SignalSet extends Subscribable {
         let exists = this._internal.has(value);
         if (!exists) {
             this._internal.add(value);
-            this.on_change.emit({ event: "add", value });
-            this._on_change_instant.emit({ event: "add", value });
+            this.emit_event({ event: "add", value });
+            // this._on_change_instant.emit({ event: "add", value })
             this.dirty();
         }
     }
@@ -34,8 +38,8 @@ export class SignalSet extends Subscribable {
     }
     delete(value) {
         if (this._internal.delete(value)) {
-            this.on_change.emit({ event: "delete", value });
-            this._on_change_instant.emit({ event: "delete", value });
+            this.emit_event({ event: "delete", value });
+            // this._on_change_instant.emit({ event: "delete", value })
             this.dirty();
         }
     }
@@ -43,8 +47,8 @@ export class SignalSet extends Subscribable {
         let values = [...this._internal.values()];
         this._internal.clear();
         for (let value of values) {
-            this.on_change.emit({ event: "delete", value });
-            this._on_change_instant.emit({ event: "delete", value });
+            this.emit_event({ event: "delete", value });
+            // this._on_change_instant.emit({ event: "delete", value })
         }
         this.dirty();
     }
@@ -88,7 +92,7 @@ export class SignalSet extends Subscribable {
         for (let i = 0; i < values.length; i++) {
             listen(values[i]);
         }
-        this._on_change_instant.subscribe((_, ve) => {
+        this.subscribe_event((_, ve) => {
             let { value, event } = ve;
             if (event === "add") {
                 listen(value);
