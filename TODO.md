@@ -1,4 +1,5 @@
 
+- Make sure Eventable (And Subscribable's same implementation) removes null weakRefs.
 
 - Implemented computed in reduce_generic
 - double check sink behaviour : Does Angular integration get triggered correctly?

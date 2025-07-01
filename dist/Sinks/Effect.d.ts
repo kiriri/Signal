@@ -1,18 +1,25 @@
 import { Subscribable } from "../Core/Subscribable";
+type MappedSignals<Inputs extends Record<string, Subscribable<any>>> = {
+    [K in keyof Inputs]: Inputs[K] extends Subscribable<infer U> ? U : Inputs[K] extends {
+        get(): infer U;
+    } ? U : never;
+};
 /**
  * An effect may reference any number of subscribables in its function, but it will only run whenever one of its sources changes.
  */
 export declare class Effect<Inputs extends Record<string, Subscribable<any>>, T> {
     readonly sources: Inputs;
-    fn: (v: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>) => T;
+    fn: (v: MappedSignals<Inputs>) => T;
     _source_cache: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>;
     _updaters: Record<keyof Inputs, (source: Subscribable<T>, value: T) => any>;
     _dirty: boolean;
+    _initialized: boolean;
     /**
      * Creates a new Computed signal with a function that computes its value.
      * @param fn - The function that computes the value of the computed signal.
      */
-    constructor(sources: Inputs, fn: (v: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>) => T);
+    constructor(sources: Inputs, fn: (v: MappedSignals<Inputs>) => T);
+    initialize(): void;
     /**
      * Instantly removes all event listener references.
      * Call this to make sure an Effect for sure no longer
@@ -22,3 +29,4 @@ export declare class Effect<Inputs extends Record<string, Subscribable<any>>, T>
      */
     destroy(): void;
 }
+export {};

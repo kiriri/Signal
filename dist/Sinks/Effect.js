@@ -9,6 +9,7 @@ export class Effect {
     _updaters = {};
     // Dirty in this case just means that it has registered the deferred emit function.
     _dirty = false;
+    _initialized = false;
     /**
      * Creates a new Computed signal with a function that computes its value.
      * @param fn - The function that computes the value of the computed signal.
@@ -26,14 +27,22 @@ export class Effect {
                 this._dirty = true;
                 Subscribable.register_async_emit(() => {
                     this._dirty = false;
+                    if (!this._initialized)
+                        this.initialize();
                     this.fn(this._source_cache);
                 });
             };
             this._updaters[key] = update_key_function;
             sources[key].subscribe(update_key_function);
+        }
+    }
+    initialize() {
+        const sources = this.sources;
+        for (let key in sources) {
             // Not all subscribables have a value at all times.
             this._source_cache[key] = sources[key]["get"]?.() ?? null;
         }
+        this._initialized = true;
     }
     /**
      * Instantly removes all event listener references.

@@ -1,3 +1,4 @@
+import { Eventable } from "./Eventable";
 export type StatefulSubscribable<T> = I_Subscribable<T> & {
     get(): T;
 };
@@ -29,7 +30,7 @@ export interface I_Subscribable<T> {
 export declare class Subscribable<T, Events extends Record<string, {
     event: string;
     value: any;
-}> = {}> implements I_Subscribable<T> {
+}> = {}> implements I_Subscribable<T>, Eventable<Events> {
     static global_listeners: Subscribable<any, any>[];
     static waiting_to_emit: Function[];
     static register_async_emit(fn: Function): void;

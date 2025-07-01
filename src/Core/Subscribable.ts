@@ -1,3 +1,4 @@
+import { Eventable } from "./Eventable";
 
 export type StatefulSubscribable<T> = I_Subscribable<T> & { get(): T };
 
@@ -49,7 +50,7 @@ export interface I_Subscribable<T>
 /**
  * Represents a subscribable value that can be observed for changes.
  */
-export class Subscribable<T, Events extends Record<string, { event: string, value: any }> = {}> implements I_Subscribable<T>
+export class Subscribable<T, Events extends Record<string, { event: string, value: any }> = {}> implements I_Subscribable<T>, Eventable<Events>
 {
 
     // This is set or replaced whenever a computed type ( or a similar custom Subscribable )
