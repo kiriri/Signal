@@ -50,7 +50,7 @@ export interface I_Subscribable<T>
 
     unsubscribe(reference: LinkedList<WeakRef<Dirtyable|((source: I_Subscribable<T>, value: T) => any | void)>>): this;
 
-    dirty(source?: I_Subscribable<any>): this;
+    dirty(source?: I_Subscribable<any>);
 }
 
 /**
@@ -180,7 +180,7 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
                 value: new WeakRef(fn)
             }
 
-            if (previous_first_item)
+            if (previous_first_item !== undefined)
                 previous_first_item.prev = new_item;
 
             return new_item;
@@ -193,8 +193,9 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
             value: new WeakRef(fn)
         }
 
-        if (previous_first_item)
+        if (previous_first_item !== undefined)
             previous_first_item.prev = new_item;
+
 
         return new_item;
     }
@@ -206,10 +207,10 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
      */
     unsubscribe(reference: NonNullable<typeof this["subscribers"] | typeof this["dependants"]>)
     {
-        if (reference.next)
+        if (reference.next !== undefined)
             reference.next.prev = reference.prev;
 
-        if (reference.prev)
+        if (reference.prev !== undefined)
             reference.prev.next = reference.next;
         else
         {
@@ -230,20 +231,16 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
     {
         let dependant = this.dependants;
         // Propagate dirty state to all dependent subscribables.
-        while (dependant)
+        while (dependant !== undefined)
         {
-                const deref = dependant.value.deref();
-                if (!deref)
-                    this.unsubscribe(dependant)
-                else
-                {
-                    deref.dirty(this as any)
-                }
-            
-                dependant = dependant.next;
+            const deref = dependant.value.deref();
+            if (deref === undefined)
+                this.unsubscribe(dependant)
+            else
+                deref.dirty(this as any)
+    
+            dependant = dependant.next;
         }
-
-        return this;
     }
 
     /**
@@ -254,15 +251,14 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
     {
         let dependant = this.subscribers;
         // Propagate dirty state to all dependent subscribables.
-        while (dependant)
+        while (dependant !== undefined)
         {
                 const deref = dependant.value.deref();
-                if (!deref)
+                if (deref === undefined)
                     this.unsubscribe(dependant)
                 else
-                {
                     deref(this as any,value)
-                }
+                
             
                 dependant = dependant.next;
         }

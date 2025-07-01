@@ -29,7 +29,7 @@ function assertValue<T>(value: T, ...signals: StatefulSubscribable<T>[])
     }
 }
 
-function assertSetSize(size: number, set: SignalSet<any> | SignalMap<any,any>)
+function assertSetSize(size: number, set: SignalSet<any> | SignalMap<any, any>)
 {
     if (set.get().size !== size)
         throw new Error("Size mismatch " + size + ' vs ' + set.get().size);
@@ -110,20 +110,25 @@ tests.push(async function test2()
     const signal2 = new NativeSignal(INITIAL_VALUE);
 
 
-    signal1.subscribe(() =>
+    const fn = () =>
     {
         console.log("SETTELETTL")
         signal2.set(signal1.get());
-    });
+    };
+    signal1.subscribe(fn);
+    // console.log("SUB DONE ", signal1.subscribers)
 
     assertValue(INITIAL_VALUE, signal1, signal2);
 
-    signal1.set(3);
+    // console.log("SET START")
 
-    console.log("About to wait")
+    signal1.set(3);
+    // console.log("SET DONE")
+
+    // console.log("About to wait")
     await wait(1);
 
-    console.log(3,signal1.get(), signal2.get());
+    // console.log(3, signal1.get(), signal2.get());
     assertValue(3, signal1, signal2);
 }
 );
@@ -136,7 +141,8 @@ tests.push(async function test3()
     const INITIAL_VALUE = 1;
 
     const signal0 = new NativeSignal(0);
-    const computed0 = new Computed(()=>{
+    const computed0 = new Computed(() =>
+    {
         return signal0.get();
     })
 
@@ -144,7 +150,7 @@ tests.push(async function test3()
     signal0.set(1);
     signal0.set(2);
 
-    assertValue(2,computed0,signal0)
+    assertValue(2, computed0, signal0)
 
     const signal1 = new NativeSignal(INITIAL_VALUE);
     const signal2 = new NativeSignal(INITIAL_VALUE);
@@ -285,6 +291,7 @@ tests.push(async function test3()
             three: signal3
         }, ({ one, two, three }) =>
         {
+            console.log("Effect 1");
             effect_count++;
         });
 
@@ -294,6 +301,8 @@ tests.push(async function test3()
             three: computed3
         }, ({ one, two, three }) =>
         {
+            console.log("Effect 2");
+
             effect_count++;
         });
 
@@ -334,8 +343,8 @@ tests.push(async function test3()
             throw new Error("Expected 5 operations, got " + operations);
         }
 
-        finalizer.register(effect_1,"effect1");
-        finalizer.register(effect_2,"effect2");
+        finalizer.register(effect_1, "effect1");
+        finalizer.register(effect_2, "effect2");
     }
 
     await scope1();
@@ -349,14 +358,16 @@ tests.push(async function test3()
 }
 );
 
-tests.push(async()=>{
-    
+tests.push(async () =>
+{
+
     async function scope1()
     {
         let interval = Interval(10);
-        finalizer.register(interval,"Interval");
+        finalizer.register(interval, "Interval");
 
-        let computed1 = new Computed(()=>{
+        let computed1 = new Computed(() =>
+        {
             return interval.get();
         });
 
@@ -364,7 +375,7 @@ tests.push(async()=>{
 
         console.log(interval.get(), computed1.get());
 
-        assertValue(10,computed1);
+        assertValue(10, computed1);
     };
 
     await scope1();
@@ -429,15 +440,15 @@ tests.push(async function test3()
         await wait(0);
 
         if (
-            !did_emit 
-            || did_emit.length !== 2 
-            || did_emit[0].event !== "add" 
+            !did_emit
+            || did_emit.length !== 2
+            || did_emit[0].event !== "add"
             || did_emit[0].value !== signal2
-            || did_emit[1].event !== "delete" 
+            || did_emit[1].event !== "delete"
             || did_emit[1].value !== signal1
         )
         {
-            console.log('res',did_emit);
+            console.log('res', did_emit);
             throw new Error("Didn't emit expected values");
         }
 
@@ -450,7 +461,7 @@ tests.push(async function test3()
     async function scope2()
     {
         signal1.set(2);
-        let countedSet1 = set1.count((v)=>v.get() > 1 ? 1 : 0);
+        let countedSet1 = set1.count((v) => v.get() > 1 ? 1 : 0);
 
 
         set1.add(signal1);
@@ -477,14 +488,14 @@ tests.push(async function test3()
     signal1["name"] = "1";
     signal2["name"] = "2";
 
-    const map1 = new SignalMap([["1",signal1]]);
+    const map1 = new SignalMap([["1", signal1]]);
 
     assertSetSize(1, map1);
 
     // allow gc to clean up everything inside
     async function scope1()
     {
-        let did_emit: { event: "add" | "delete"; key:string, value: NativeSignal<number>; }[] = [];
+        let did_emit: { event: "add" | "delete"; key: string, value: NativeSignal<number>; }[] = [];
 
         const cbk = (sig, v) =>
         {
@@ -496,11 +507,11 @@ tests.push(async function test3()
 
         map1.subscribe_event(cbk);
 
-        map1.set("2",signal2);
+        map1.set("2", signal2);
 
         assertSetSize(2, map1);
 
-        map1.set("2",signal2);
+        map1.set("2", signal2);
 
         assertSetSize(2, map1);
 
@@ -516,17 +527,17 @@ tests.push(async function test3()
         await wait(0);
 
         if (
-            !did_emit 
-            || did_emit.length !== 2 
-            || did_emit[0].event !== "add" 
+            !did_emit
+            || did_emit.length !== 2
+            || did_emit[0].event !== "add"
             || did_emit[0].value[0] !== "2"
             || did_emit[0].value[1] !== signal2
-            || did_emit[1].event !== "delete" 
-            || did_emit[1].value[0] !== "1" 
+            || did_emit[1].event !== "delete"
+            || did_emit[1].value[0] !== "1"
             || did_emit[1].value[1] !== signal1
         )
         {
-            console.log('res',did_emit);
+            console.log('res', did_emit);
             throw new Error("Didn't emit expected values");
         }
 
@@ -550,19 +561,19 @@ tests.push(async function test3()
     signal1["name"] = "1";
     signal2["name"] = "2";
 
-    const map1 = new SignalMap([["1",signal1]]);
+    const map1 = new SignalMap([["1", signal1]]);
 
     assertValue(signal1, map1.ref("1"));
 
     assertValue(undefined, map1.ref("2"));
-    assertSetSize(1,map1);
+    assertSetSize(1, map1);
 
     map1.ref("2").set(signal2);
 
     await wait(0)
 
     assertValue(signal2, map1.ref("2"));
-    assertSetSize(2,map1);
+    assertSetSize(2, map1);
 }
 );
 
@@ -590,7 +601,7 @@ tests.push(async function OrderTest()
     let two = order.push(2);
     let three = order.push(3);
 
-    let items = [...order].forEach((v,i)=>console.assert(v.value === (i+1), `Items out of order ${v.value}`));
+    let items = [...order].forEach((v, i) => console.assert(v.value === (i + 1), `Items out of order ${v.value}`));
 }
 );
 
@@ -603,20 +614,20 @@ tests.push(async function OrderTest()
     order.push(1);
     order.push(2);
     order.push(3);
-    const map = new SignalMap<string,number>([
-        ["hi",1],
-        ["hello",2],
-        ["bonjour",3]
+    const map = new SignalMap<string, number>([
+        ["hi", 1],
+        ["hello", 2],
+        ["bonjour", 3]
     ]);
-    const set = new SignalSet<number>([1,2,3]);
+    const set = new SignalSet<number>([1, 2, 3]);
 
-    const order_count = count(order,(v)=>v);
-    const map_count = count(map,(v)=>v[1]);
-    const set_count = count(set,(v)=>v);
+    const order_count = count(order, (v) => v);
+    const map_count = count(map, (v) => v[1]);
+    const set_count = count(set, (v) => v);
 
     // console.log(order_count.get(), map_count.get(), set_count.get())
 
-    assertValue(6,order_count, map_count, set_count);
+    assertValue(6, order_count, map_count, set_count);
 }
 );
 

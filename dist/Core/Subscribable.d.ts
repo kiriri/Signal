@@ -20,7 +20,7 @@ export interface I_Subscribable<T> {
     subscribe(subscribable: (source: I_Subscribable<T>, value: T) => any | void): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T) => any | void>>;
     subscribe(fn: ((source: I_Subscribable<T>, value: any) => any) | Dirtyable): LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T) => any | void)>>;
     unsubscribe(reference: LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T) => any | void)>>): this;
-    dirty(source?: I_Subscribable<any>): this;
+    dirty(source?: I_Subscribable<any>): any;
 }
 /**
  * Represents a subscribable value that can be observed for changes.
@@ -56,7 +56,7 @@ export declare class Subscribable<T, Events extends Record<string, {
      * Call this whenever this subscribable or any of its dependencies have changed.
      * This should propagate all the way through all subscribable which depend on this.
      */
-    dirty(source?: I_Subscribable<any>): this;
+    dirty(source?: I_Subscribable<any>): void;
     /**
      * Emits a new value and notifies all subscribers immediately
      * @param value - The new value to emit.

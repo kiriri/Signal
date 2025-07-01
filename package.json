@@ -7,8 +7,9 @@
   "types": "dist/index.d.ts",
   "description": "Similar to Angular's Signal system, but framework independent, fast, and with some collection support.",
   "scripts": {
-    "publish:local":"npm run build && npx yalc push --private",
+    "publish:local": "npm run build:mangled && npx yalc push --private",
     "test": "tsx --expose-gc ./src/Tests/NewTest.ts & tsx --expose-gc ./src/Tests/StressTest2.ts",
+    "build:mangled": "rm ./dist -r && rollup --config rollup.config.ts",
     "build": "rm ./dist -r && npx tsc",
     "build:lite": "npx tsc",
     "build:alt": "npx tsc ./src/index.ts --outDir ./dist --noCheck --sourceMap --declaration --declarationMap"
@@ -31,7 +32,14 @@
   },
   "homepage": "https://github.com/kiriri/Signal#readme",
   "devDependencies": {
+    "@rollup/plugin-typescript": "^12.1.4",
+    "jsmin": "^1.0.1",
+    "rollup": "^4.44.1",
     "tsx": "^4.20.3",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "uglify-es": "^3.3.10"
+  },
+  "dependencies": {
+    "rollup-plugin-uglify": "^6.0.4"
   }
 }

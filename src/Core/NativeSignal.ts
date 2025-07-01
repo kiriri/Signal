@@ -63,7 +63,7 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
         if(this.queued) 
             return this;
 
-        if (this.subscribers)
+        if (this.subscribers !== undefined)
         {
             this.queued = true;
             Subscribable.register_async_emit(() => this.emit());

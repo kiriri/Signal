@@ -14,6 +14,7 @@
       "isolatedModules": false,
       "module": "ESNext",
       "target": "ESNext"
+      
     },
     "include": ["src/**/*"],
     "exclude": ["node_modules","src/**/*.test.ts"],

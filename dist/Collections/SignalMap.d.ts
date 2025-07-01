@@ -40,6 +40,6 @@ export declare class SignalMap<K, V> extends Subscribable<Map<K, V>, MapEvents<K
     clear(): void;
     has(key: K): boolean;
     queued: boolean;
-    dirty(source?: I_Subscribable<any>): this;
+    dirty(source?: I_Subscribable<any>): void | this;
     emit(value?: Map<K, V>): this;
 }

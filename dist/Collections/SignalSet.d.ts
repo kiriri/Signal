@@ -21,7 +21,7 @@ export declare class SignalSet<T> extends Subscribable<Set<T>, SetEvents<T>> imp
     delete(value: T): void;
     clear(): void;
     queued: boolean;
-    dirty(source?: I_Subscribable<any>): this;
+    dirty(source?: I_Subscribable<any>): void | this;
     emit(value?: Set<T>): this;
     has(value: T): boolean;
     count(fn: (v: T) => number, subscribe?: boolean): ReadonlySignal<number>;

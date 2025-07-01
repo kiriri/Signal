@@ -10,7 +10,7 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
 {
     // This computed signal is currently listening to any change in any of these subscribables.
     // These subscribables are bound up in fn, so we don't have to worry about weakly referencing them here either.
-    subscribed_to: Map<Subscribable<any>, { ref: any, count: number }> = new Map();
+    subscribed_to: { signal: Subscribable<any>, ref: any}[] = [];
 
     // The function that is called to compute the current value of this Subscribable.
     readonly fn: () => T;
@@ -53,26 +53,26 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
     override dirty(source?: I_Subscribable<any>)
     {
         if (this._dirty)
-            return this;
+            return;
         this._dirty = true;
 
         // Propagate the dirty state.
         super.dirty(source);
 
         // recalculate and propagate when we can be sure that all dependencies updated.
-        if (this.subscribers || this._eager)
+        if (this.subscribers !== undefined || this._eager)
         {
             Subscribable.register_async_emit(() => this.emit(this.get()))
         }
 
-        return this;
+        // return this;
     };
 
     get()
     {
         // If this computed type is called inside of another computed type:
         // store the parent listener and replace it with its own for a bit.
-        if (Subscribable.global_listeners)
+        if (Subscribable.global_listeners !== null)
         {
             Subscribable.global_listeners.push(this);
         }
@@ -110,55 +110,50 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
     {
         this._dirty = false;
 
-
         let parent_listeners = Subscribable.global_listeners;
         const global_listeners = Subscribable.global_listeners = <Subscribable<any>[]>[];
         Subscribable.global_listeners = global_listeners;
 
         let value = this.fn();
-        // let value = 0 as any;
 
-        const subscribed_to = this.subscribed_to;
+        // subscribing and unsubscribing is *really* optimized, making it faster
+        // than any Set/Map difference we could possibly come up with here.
+        // And yes, just unsubscribing and resubscribing again and again looks 0 IQ,
+        // but I tested this quite thoroughly.
 
+        let subscribed_to = this.subscribed_to;
         
-        // for (let sub of subscribed_to)
-        // {
-        //     sub[1].count = 0;
-        // }
+        const l1 = subscribed_to.length;
+        for(let i = 0; i < l1; i++)
+        {
+            let {ref, signal} = subscribed_to[i];
+
+            signal.unsubscribe(ref);
+        }
 
         const length = global_listeners.length;
         for (let i = 0; i < length; i++)
         {
             const sub = global_listeners[i];
-            const o = subscribed_to.get(sub);
-            if (o)
+
+            // Avoid push if the array is already sufficiently sized
+            if(i < l1)
             {
-                // mark it as unchanged
-                o.count = 1;
+                // we'll reuse
+                let existing = subscribed_to[i];
+                existing.ref = sub.subscribe(this);
+                existing.signal = sub;
             }
             else
-            {
-                // specially mark it as new.
-                subscribed_to.set(sub, {
-                    count: -1,
+                subscribed_to.push({
+                    signal:sub,
                     ref: sub.subscribe(this)
                 });
-            }
         }
-
-            for (let [signal, status] of subscribed_to)
-            {
-                // Status 0 means it's no longer used
-                if (status.count === 0)
-                {
-                    signal.unsubscribe(status.ref);
-                    subscribed_to.delete(signal);
-                }
-
-                // Set all states to 0 for the next time around.
-                status.count = 0;
-            }
-
+        
+        // Shrink the array if the number of subscribed to signals decreased.
+        if(length<l1)
+            subscribed_to.length = length;
 
         // If this was called inside another computed signal, switch back to that ones listeners so it can continue on.
         // If it was not inside another listener, set listeners to undefined!
@@ -184,6 +179,6 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
             sub[0].unsubscribe(sub[1].ref);
         }
 
-        this.subscribed_to.clear();
+        this.subscribed_to.length = 0;
     }
 }
