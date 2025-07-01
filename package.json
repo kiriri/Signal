@@ -7,6 +7,7 @@
   "types": "dist/index.d.ts",
   "description": "Similar to Angular's Signal system, but framework independent, fast, and with some collection support.",
   "scripts": {
+    "publish:local":"npm run build && npx yalc push --private",
     "test": "tsx --expose-gc ./src/Tests/NewTest.ts & tsx --expose-gc ./src/Tests/StressTest2.ts",
     "build": "rm ./dist -r && npx tsc",
     "build:lite": "npx tsc",

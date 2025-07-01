@@ -19,18 +19,17 @@ export class BufferedSubscribable<T> implements I_Subscribable<T[]>
 
     protected readonly proxy = new Subscribable<T[]>();
 
+    /**
+     * Pipe all changes from the subscribable into this buffered subscribable.
+     * Returns an unsubscribe function.
+     * @param target 
+     * @returns 
+     */
     attach(target:Subscribable<T>)
     {
-        target.subscribe(this.on_target_change);
+        const ref = target.subscribe(this.on_target_change);
 
-        return this;
-    }
-
-    detach(target:Subscribable<T>)
-    {
-        target.unsubscribe(this.on_target_change);
-    
-        return this;
+        return ()=>target.unsubscribe(ref);
     }
 
     on_target_change = (source: Subscribable<T>, value: T) =>

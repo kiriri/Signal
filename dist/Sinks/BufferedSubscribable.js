@@ -14,13 +14,15 @@ export class BufferedSubscribable {
     _dirty = false;
     buffer = [];
     proxy = new Subscribable();
+    /**
+     * Pipe all changes from the subscribable into this buffered subscribable.
+     * Returns an unsubscribe function.
+     * @param target
+     * @returns
+     */
     attach(target) {
-        target.subscribe(this.on_target_change);
-        return this;
-    }
-    detach(target) {
-        target.unsubscribe(this.on_target_change);
-        return this;
+        const ref = target.subscribe(this.on_target_change);
+        return () => target.unsubscribe(ref);
     }
     on_target_change = (source, value) => {
         this.buffer.push(value);

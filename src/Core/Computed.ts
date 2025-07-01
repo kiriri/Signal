@@ -1,7 +1,7 @@
 // Computed signals will add a set to this when they get their value.
 // Any other signal whose value is used will automatically add itself to the last array.
 
-import { Dirtyable, I_Subscribable, StatefulSubscribable, Subscribable } from "./Subscribable";
+import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable";
 
 /**
  * Represents a computed signal that dynamically computes its value based on other signals.
@@ -10,12 +10,12 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
 {
     // This computed signal is currently listening to any change in any of these subscribables.
     // These subscribables are bound up in fn, so we don't have to worry about weakly referencing them here either.
-    subscribed_to: Map<Subscribable<any>, number> = new Map();
+    subscribed_to: Map<Subscribable<any>, { ref: any, count: number }> = new Map();
 
     // The function that is called to compute the current value of this Subscribable.
-    fn: () => T;
+    readonly fn: () => T;
 
-    _dirty : boolean | "first" = true;
+    _dirty: boolean | "first" = true;
     _cache !: T;
     _eager !: boolean;
 
@@ -32,7 +32,7 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
         this._eager = eager;
 
         // Instantly run the function to subscribe to the relevant dependencies.
-        if(eager)
+        if (eager)
         {
             this._cache = this._get();
         }
@@ -60,9 +60,9 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
         super.dirty(source);
 
         // recalculate and propagate when we can be sure that all dependencies updated.
-        if(this.subscribers || this._eager)
+        if (this.subscribers || this._eager)
         {
-            Subscribable.register_async_emit(()=>this.emit(this.get()))
+            Subscribable.register_async_emit(() => this.emit(this.get()))
         }
 
         return this;
@@ -84,20 +84,22 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
         return this._cache;
     }
 
-    override subscribe(subscribable: Dirtyable): this;
-    override subscribe(subscribable: (source: I_Subscribable<T>, value: T) => any | void): this;
-    override subscribe(fn: ((source: I_Subscribable<T>, value: T) => any | void) | Dirtyable): this
+    override subscribe(
+        subscribable: Dirtyable
+    ): LinkedList<WeakRef<Dirtyable>>;
+    override subscribe(
+        subscribable: (source: I_Subscribable<T>, value: T) => any | void
+    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T) => any | void>>;
+    override subscribe(
+        fn: ((source: I_Subscribable<T>, value: T) => any) | Dirtyable
+    ): LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T) => any)>>
     {
-
-        if(this._dirty === "first")
+        if (this._dirty === "first")
         {
             this._get();  // initialize subscribers 
         }
 
-        super.subscribe(arguments[0]);
-
-        
-        return this;
+        return super.subscribe(arguments[0]);
     }
 
     /**
@@ -114,76 +116,49 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
         Subscribable.global_listeners = global_listeners;
 
         let value = this.fn();
+        // let value = 0 as any;
 
-        // Set all states to 0.
-        for (let sub of this.subscribed_to.keys())
-        {
-            this.subscribed_to.set(sub, 0);
-        }
+        const subscribed_to = this.subscribed_to;
 
-        for (let sub of global_listeners)
+        
+        // for (let sub of subscribed_to)
+        // {
+        //     sub[1].count = 0;
+        // }
+
+        const length = global_listeners.length;
+        for (let i = 0; i < length; i++)
         {
-            if (this.subscribed_to.has(sub))
+            const sub = global_listeners[i];
+            const o = subscribed_to.get(sub);
+            if (o)
             {
                 // mark it as unchanged
-                if (this.subscribed_to.get(sub) === 0)
-                    this.subscribed_to.set(sub, 1);
+                o.count = 1;
             }
             else
             {
                 // specially mark it as new.
-                this.subscribed_to.set(sub,-1);
+                subscribed_to.set(sub, {
+                    count: -1,
+                    ref: sub.subscribe(this)
+                });
             }
         }
 
-        for(let [signal,status] of this.subscribed_to)
-        {
-            switch(status)
+            for (let [signal, status] of subscribed_to)
             {
-                // Newly added
-                case -1:
-                    signal.subscribe(this);
-                    break
                 // Status 0 means it's no longer used
-                case 0:
-                    signal.unsubscribe(this);
-                    break;
-                
-                // We can ignore 1 (same old)
+                if (status.count === 0)
+                {
+                    signal.unsubscribe(status.ref);
+                    subscribed_to.delete(signal);
+                }
+
+                // Set all states to 0 for the next time around.
+                status.count = 0;
             }
-        }
 
-        // let unique_subscription: Subscribable<any>[] = [];
-
-        // const set = new Set(this.subscribed_to);
-        // const new_set = new Set(global_listeners);
-
-
-        // for (let i = 0; i < this.subscribed_to.length; i++)
-        // {
-        //     const signal = this.subscribed_to[i];
-        //     if (!new_set.has(signal))
-        //     {
-        //         signal.unsubscribe(this)
-        //     }
-        //     else
-        //     {
-        //         unique_subscription.push(signal);
-        //     }
-        // }
-
-        // for (let i = 0; i < global_listeners.length; i++)
-        // {
-        //     const signal = global_listeners[i];
-        //     if (!set.has(signal))
-        //     {
-        //         signal.subscribe(this);
-        //         set.add(signal);
-        //         unique_subscription.push(signal);
-        //     }
-        // }
-
-        // this.subscribed_to = unique_subscription;
 
         // If this was called inside another computed signal, switch back to that ones listeners so it can continue on.
         // If it was not inside another listener, set listeners to undefined!
@@ -204,9 +179,9 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
     destroy()
     {
         this._dirty = false;
-        for(let sub of [...this.subscribed_to.keys()])
+        for (let sub of this.subscribed_to)
         {
-            sub.unsubscribe(this);
+            sub[0].unsubscribe(sub[1].ref);
         }
 
         this.subscribed_to.clear();

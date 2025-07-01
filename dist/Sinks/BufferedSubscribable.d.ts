@@ -12,8 +12,13 @@ export declare class BufferedSubscribable<T> implements I_Subscribable<T[]> {
     _dirty: boolean;
     protected buffer: T[];
     protected readonly proxy: Subscribable<T[], {}>;
-    attach(target: Subscribable<T>): this;
-    detach(target: Subscribable<T>): this;
+    /**
+     * Pipe all changes from the subscribable into this buffered subscribable.
+     * Returns an unsubscribe function.
+     * @param target
+     * @returns
+     */
+    attach(target: Subscribable<T>): () => Subscribable<T, {}>;
     on_target_change: (source: Subscribable<T>, value: T) => void;
     readonly subscribe: any;
     readonly unsubscribe: any;

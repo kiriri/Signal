@@ -2,7 +2,7 @@ import { NativeSignal } from "../Core/NativeSignal";
 import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 import { I_NativeCollection, ReqColTypes } from "./Collection";
 import { Computed } from "../Core/Computed";
-import { I_Subscribable, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
+import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 
 // TODO : Maps need to use the same entry in every single event or else we can't store related
 // state info.
@@ -42,7 +42,8 @@ export function reduce_generic(
     const mapper = opts.mapper;
 
     const cache = new Map<typeof identityValue, {
-        prev: any
+        prev: any, // last known value
+        ref:LinkedList<any> // subscription reference (needed to unsubscribe from signals)
     }>();
 
     let fully_dirty = false;
@@ -94,10 +95,8 @@ export function reduce_generic(
                 {
                     if (unpackSignals)
                     {
-                        listen(kv[0]);
+                        listen(key);
                     }
-                    prevValue = identityValue;
-                    cache.set(key, cacheItem = { prev: value });
                 }
                 else
                 {
@@ -122,16 +121,18 @@ export function reduce_generic(
 
         function listen(signal: Subscribable<any>)
         {
-            signal.subscribe(lazy_apply);
+            cache.set(signal,{
+                prev:identityValue,
+                ref:signal.subscribe(lazy_apply)
+            })
         }
 
         function unlisten(signal: Subscribable<any>)
         {
-            if (cache.delete(signal))
-            {
-                dirty.delete(signal);
-                signal.unsubscribe(lazy_apply);
-            }
+            let ref = cache.get(signal).ref;
+            signal.unsubscribe(ref);
+            cache.delete(signal);
+            dirty.delete(signal);
         }
 
         for (let initial_value of source.get())
@@ -184,7 +185,7 @@ export function reduce_generic(
                 state.prev = value;
             else
             {
-                cache.set(sourceItem, { prev: value });
+                cache.set(sourceItem, { prev: value, ref:null! });
             }
 
 
@@ -198,12 +199,16 @@ export function reduce_generic(
 
         function listen(signal: Subscribable<any>)
         {
-            signal.subscribe(apply_value);
+            cache.set(signal,{
+                prev:identityValue,
+                ref:signal.subscribe(apply_value)
+            })
         }
 
         function unlisten(signal: Subscribable<any>)
         {
-            signal.unsubscribe(apply_value);
+            let ref = cache.get(signal).ref;
+            signal.unsubscribe(ref);
             cache.delete(signal);
         }
 

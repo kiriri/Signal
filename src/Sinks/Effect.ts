@@ -1,4 +1,4 @@
-import { Dirtyable, Subscribable } from "../Core/Subscribable";
+import { Dirtyable, I_Subscribable, LinkedList, Subscribable } from "../Core/Subscribable";
 
 type MappedSignals<Inputs extends Record<string, Subscribable<any>>> = {[K in keyof Inputs]: Inputs[K] extends Subscribable<infer U> ? U : Inputs[K] extends {get():infer U} ? U : never};
 
@@ -8,7 +8,10 @@ type MappedSignals<Inputs extends Record<string, Subscribable<any>>> = {[K in ke
 export class Effect<Inputs extends Record<string, Subscribable<any>>, T>
 {
     _source_cache: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never> = {} as any;
-    _updaters: Record<keyof Inputs, (source:Subscribable<T>, value: T) => any> = {} as any;
+
+    _updaters: { 
+        [x: string]: LinkedList<WeakRef<(source: I_Subscribable<any>, value: any) => any | void>>; 
+    } = {};
 
     // Dirty in this case just means that it has registered the deferred emit function.
     _dirty = false;
@@ -42,8 +45,7 @@ export class Effect<Inputs extends Record<string, Subscribable<any>>, T>
                 });
             };
 
-            this._updaters[key] = update_key_function;
-            sources[key].subscribe(update_key_function);
+            this._updaters[key] = sources[key].subscribe(update_key_function);
         }
     }
 

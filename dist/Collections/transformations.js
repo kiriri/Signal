@@ -53,10 +53,8 @@ export function reduce_generic(source, identityValue, opts) {
                 let prevValue;
                 if (!cacheItem) {
                     if (unpackSignals) {
-                        listen(kv[0]);
+                        listen(key);
                     }
-                    prevValue = identityValue;
-                    cache.set(key, cacheItem = { prev: value });
                 }
                 else {
                     prevValue = cacheItem.prev;
@@ -72,13 +70,16 @@ export function reduce_generic(source, identityValue, opts) {
             return original_get(...args);
         };
         function listen(signal) {
-            signal.subscribe(lazy_apply);
+            cache.set(signal, {
+                prev: identityValue,
+                ref: signal.subscribe(lazy_apply)
+            });
         }
         function unlisten(signal) {
-            if (cache.delete(signal)) {
-                dirty.delete(signal);
-                signal.unsubscribe(lazy_apply);
-            }
+            let ref = cache.get(signal).ref;
+            signal.unsubscribe(ref);
+            cache.delete(signal);
+            dirty.delete(signal);
         }
         for (let initial_value of source.get()) {
             lazy_apply(initial_value, initial_value);
@@ -116,7 +117,7 @@ export function reduce_generic(source, identityValue, opts) {
             if (state)
                 state.prev = value;
             else {
-                cache.set(sourceItem, { prev: value });
+                cache.set(sourceItem, { prev: value, ref: null });
             }
             merger(sourceItem, output, value, prev_value);
         }
@@ -124,10 +125,14 @@ export function reduce_generic(source, identityValue, opts) {
             apply_value(initial_value, mapper?.(initial_value) ?? initial_value);
         }
         function listen(signal) {
-            signal.subscribe(apply_value);
+            cache.set(signal, {
+                prev: identityValue,
+                ref: signal.subscribe(apply_value)
+            });
         }
         function unlisten(signal) {
-            signal.unsubscribe(apply_value);
+            let ref = cache.get(signal).ref;
+            signal.unsubscribe(ref);
             cache.delete(signal);
         }
         source.subscribe_event((_, ve) => {

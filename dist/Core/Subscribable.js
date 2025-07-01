@@ -87,49 +87,40 @@ export class Subscribable {
         return this;
     }
     subscribe(fn) {
-        if (Subscribable.global_listeners)
-            Subscribable.global_listeners.push(this);
         if (typeof fn === "function") {
-            if (!this.subscribers)
-                this.subscribers = new Set();
-            let weak_entry;
-            weak_entry = fn["$weakRef"] ??= new WeakRef(fn);
-            // if(function_owns_signal)
-            // {
-            //     weak_entry = new WeakRef(entry);
-            //     (fn as any)["$weakRef"]??=new WeakRef(entry);
-            //     (fn as any)[this.uid] = this; // Don't remove the weak ref until this is removed as well
-            // }
-            // else if(function_owns_signal === false)
-            // {
-            //     this.subscribers.add((fn as any)["$fweakRef"]??=new FakeWeakRef(entry))
-            // }
-            // else
-            // {
-            //     this.subscribers.add((fn as any)["$weakRef"]??=new WeakRef(entry))
-            // }
-            this.subscribers.add(weak_entry);
+            const previous_first_item = this.subscribers;
+            const new_item = this.subscribers = {
+                next: this.subscribers,
+                value: new WeakRef(fn)
+            };
+            if (previous_first_item)
+                previous_first_item.prev = new_item;
+            return new_item;
         }
-        else {
-            if (!this.dependants)
-                this.dependants = new Set();
-            this.dependants.add(fn["$weakRef"] ??= new WeakRef(fn));
-        }
-        return this;
+        const previous_first_item = this.dependants;
+        const new_item = this.dependants = {
+            next: this.dependants,
+            value: new WeakRef(fn)
+        };
+        if (previous_first_item)
+            previous_first_item.prev = new_item;
+        return new_item;
     }
-    unsubscribe(fn) {
-        if (typeof fn === "function") {
-            if (this.subscribers) {
-                if (fn["$weakRef"])
-                    this.subscribers.delete(fn["$weakRef"]);
-                if (fn["$fweakRef"])
-                    this.subscribers.delete(fn["$fweakRef"]);
-                // delete (fn as any)[this.uid];
-            }
-        }
+    /**
+     * Force unsubscribe. This is generally not recommended, as garbage collection
+     * does the same thing automatically.
+     * @param reference
+     */
+    unsubscribe(reference) {
+        if (reference.next)
+            reference.next.prev = reference.prev;
+        if (reference.prev)
+            reference.prev.next = reference.next;
         else {
-            this.dependants?.delete(fn["$weakRef"]);
-            delete fn["$weakRef"];
+            if (this.dependants === reference)
+                this.dependants = this.dependants.next;
+            else if (this.subscribers === reference)
+                this.subscribers = this.subscribers.next;
         }
         return this;
     }
@@ -138,17 +129,16 @@ export class Subscribable {
      * This should propagate all the way through all subscribable which depend on this.
      */
     dirty(source) {
+        let dependant = this.dependants;
         // Propagate dirty state to all dependent subscribables.
-        if (this.dependants) {
-            const values = this.dependants.values();
-            for (const ref of values) {
-                const deref = ref.deref();
-                if (!deref)
-                    this.dependants.delete(ref);
-                else {
-                    deref.dirty(this);
-                }
+        while (dependant) {
+            const deref = dependant.value.deref();
+            if (!deref)
+                this.unsubscribe(dependant);
+            else {
+                deref.dirty(this);
             }
+            dependant = dependant.next;
         }
         return this;
     }
@@ -157,26 +147,27 @@ export class Subscribable {
      * @param value - The new value to emit.
      */
     emit(value) {
-        if (this.subscribers) {
-            const values = this.subscribers.values();
-            for (const ref of values) {
-                const deref = ref.deref();
-                if (!deref)
-                    this.subscribers.delete(ref);
-                else {
-                    deref(this, value);
-                }
+        let dependant = this.subscribers;
+        // Propagate dirty state to all dependent subscribables.
+        while (dependant) {
+            const deref = dependant.value.deref();
+            if (!deref)
+                this.unsubscribe(dependant);
+            else {
+                deref(this, value);
             }
+            dependant = dependant.next;
         }
         return this;
     }
     promise() {
         let resolve;
+        let reference;
         const subscriber = (source, v) => {
-            this.unsubscribe(subscriber);
+            this.unsubscribe(reference);
             resolve(v);
         };
-        this.subscribe(subscriber);
+        reference = this.subscribe(subscriber);
         return new Promise((_resolve) => {
             resolve = _resolve;
         });

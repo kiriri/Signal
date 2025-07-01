@@ -12,9 +12,10 @@ function assertSame(...signals) {
     assertValue(signals[0].get(), ...signals);
 }
 function assertValue(value, ...signals) {
-    for (let signal of signals) {
+    for (let i = 0; i < signals.length; i++) {
+        const signal = signals[i];
         if (signal.get() !== value) {
-            throw new Error("Value mismatch " + value + " vs " + signal.get());
+            throw new Error("Value mismatch at " + i + " : " + value + " vs " + signal.get());
         }
     }
 }
@@ -218,6 +219,7 @@ tests.push(async function test3() {
     gc();
     await wait(100);
     gc();
+    console.log("This?");
     await assertGcCount(6);
 });
 tests.push(async () => {

@@ -30,19 +30,25 @@ export interface Dirtyable
     // _dirty:boolean;
 }
 
+export type LinkedList<T> = {
+    next?: LinkedList<T>;
+    prev?: LinkedList<T>;
+    value: T
+}
+
 export interface I_Subscribable<T>
 {
-    subscribe(subscribable: Dirtyable): this;
-    subscribe(subscribable: (source: I_Subscribable<T>, value: T) => any | void): this;
     subscribe(
-        fn: ((source: I_Subscribable<T>, value: T) => any | void) | Dirtyable,
-    ): this;
+        subscribable: Dirtyable
+    ): LinkedList<WeakRef<Dirtyable>>;
+    subscribe(
+        subscribable: (source: I_Subscribable<T>, value: T) => any | void
+    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T) => any | void>>;
+    subscribe(
+        fn: ((source: I_Subscribable<T>, value: any) => any) | Dirtyable
+    ): LinkedList<WeakRef<Dirtyable|((source: I_Subscribable<T>, value: T) => any | void)>>;
 
-    unsubscribe(subscribable: Dirtyable): this;
-    unsubscribe(subscribable: (source: I_Subscribable<T>, value: T) => any | void): this;
-    unsubscribe(
-        fn: ((source: I_Subscribable<T>, value: T) => any | void) | Dirtyable,
-    ): this;
+    unsubscribe(reference: LinkedList<WeakRef<Dirtyable|((source: I_Subscribable<T>, value: T) => any | void)>>): this;
 
     dirty(source?: I_Subscribable<any>): this;
 }
@@ -91,12 +97,8 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
 
     // These functions want to be called when this Subscribable's value changes.
     // We store them as WeakRefs so they get GCed when nobody uses the object anymore.
-    subscribers: Set<
-        WeakRef<(source: Subscribable<T, any>, value: T) => any> |
-        FakeWeakRef<(source: Subscribable<T, any>, value: T) => any>
-    > | undefined;
-
-    dependants: Set<WeakRef<Subscribable<any, any>>> | undefined;
+    subscribers: LinkedList<WeakRef<(source: I_Subscribable<T>, value: any) => any>> | undefined;
+    dependants: LinkedList<WeakRef<Dirtyable>> | undefined;
 
     // event subscribers
     events: Record<string, ((source:Subscribable<any,any>,event: Events[keyof Events]) => any)[]> | undefined;
@@ -157,78 +159,64 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
      * @param function_owns_signal - If true, this subscribable will not GC while the function is being held. If false, the function will not GC while the signal is held.
      * @param subscribable If set, instantly sets the target subscribable to dirty when this subscribable emits.
      */
-    subscribe(subscribable: Dirtyable): this;
-    subscribe(subscribable: (source: I_Subscribable<T>, value: T) => any | void): this;
     subscribe(
-        fn: ((source: I_Subscribable<T>, value: T) => any | void) | Dirtyable,
-    )
+        subscribable: Dirtyable
+    ): LinkedList<WeakRef<Dirtyable>>;
+    subscribe(
+        subscribable: (source: I_Subscribable<T>, value: T) => any | void
+    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T) => any | void>>;
+    subscribe(
+        fn: ((source: I_Subscribable<T>, value: T) => any) | Dirtyable
+    ) : LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T) => any)>>
     {
-        if (Subscribable.global_listeners)
-            Subscribable.global_listeners.push(this);
+        
 
         if (typeof fn === "function")
         {
-            if (!this.subscribers)
-                this.subscribers = new Set();
+            const previous_first_item = this.subscribers;
 
-            let weak_entry: WeakRef<typeof fn> | FakeWeakRef<typeof fn>;
+            const new_item: LinkedList<WeakRef<typeof fn>> = this.subscribers = {
+                next: this.subscribers!,
+                value: new WeakRef(fn)
+            }
 
-            weak_entry = (fn as any)["$weakRef"] ??= new WeakRef(fn);
+            if (previous_first_item)
+                previous_first_item.prev = new_item;
 
-            // if(function_owns_signal)
-            // {
-            //     weak_entry = new WeakRef(entry);
-
-            //     (fn as any)["$weakRef"]??=new WeakRef(entry);
-            //     (fn as any)[this.uid] = this; // Don't remove the weak ref until this is removed as well
-            // }
-            // else if(function_owns_signal === false)
-            // {
-            //     this.subscribers.add((fn as any)["$fweakRef"]??=new FakeWeakRef(entry))
-            // }
-            // else
-            // {
-            //     this.subscribers.add((fn as any)["$weakRef"]??=new WeakRef(entry))
-            // }
-
-            this.subscribers.add(weak_entry);
-        }
-        else
-        {
-            if (!this.dependants)
-                this.dependants = new Set();
-
-            this.dependants.add((fn as any)["$weakRef"] ??= new WeakRef(fn))
+            return new_item;
         }
 
-        return this;
+        const previous_first_item = this.dependants;
+
+        const new_item: LinkedList<WeakRef<typeof fn>> = this.dependants = {
+            next: this.dependants!,
+            value: new WeakRef(fn)
+        }
+
+        if (previous_first_item)
+            previous_first_item.prev = new_item;
+
+        return new_item;
     }
 
     /**
-     * Unsubscribes a function from being called when the value of this Subscribable changes.
-     * @param fn - The function to unsubscribe.
+     * Force unsubscribe. This is generally not recommended, as garbage collection 
+     * does the same thing automatically.
+     * @param reference
      */
-    unsubscribe(subscribable: Dirtyable): this;
-    unsubscribe(subscribable: (source: I_Subscribable<T>, value: T) => any | void): this;
-    unsubscribe(
-        fn: ((source: I_Subscribable<T>, value: T) => any | void) | Dirtyable,
-    ): this
+    unsubscribe(reference: NonNullable<typeof this["subscribers"] | typeof this["dependants"]>)
     {
-        if (typeof fn === "function")
-        {
-            if (this.subscribers)
-            {
-                if ((fn as any)["$weakRef"])
-                    this.subscribers.delete((fn as any)["$weakRef"]);
-                if ((fn as any)["$fweakRef"])
-                    this.subscribers.delete((fn as any)["$fweakRef"]);
-                // delete (fn as any)[this.uid];
-            }
-        }
+        if (reference.next)
+            reference.next.prev = reference.prev;
+
+        if (reference.prev)
+            reference.prev.next = reference.next;
         else
         {
-            this.dependants?.delete((fn as any)["$weakRef"])
-            delete (fn as any)["$weakRef"];
+            if(this.dependants === reference)
+                this.dependants = this.dependants.next;
+            else if(this.subscribers === reference)
+                this.subscribers = this.subscribers.next;
         }
 
         return this;
@@ -240,26 +228,23 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
      */
     dirty(source?: I_Subscribable<any>)
     {
+        let dependant = this.dependants;
         // Propagate dirty state to all dependent subscribables.
-        if (this.dependants)
+        while (dependant)
         {
-            const values = this.dependants.values();
-
-            for (const ref of values)
-            {
-                const deref = ref.deref();
+                const deref = dependant.value.deref();
                 if (!deref)
-                    this.dependants.delete(ref);
+                    this.unsubscribe(dependant)
                 else
                 {
-                    deref.dirty(this)
+                    deref.dirty(this as any)
                 }
-            }
+            
+                dependant = dependant.next;
         }
 
         return this;
     }
-
 
     /**
      * Emits a new value and notifies all subscribers immediately
@@ -267,20 +252,19 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
      */
     emit(value: T)
     {
-        if (this.subscribers)
+        let dependant = this.subscribers;
+        // Propagate dirty state to all dependent subscribables.
+        while (dependant)
         {
-            const values = this.subscribers.values();
-
-            for (const ref of values)
-            {
-                const deref = ref.deref();
+                const deref = dependant.value.deref();
                 if (!deref)
-                    this.subscribers.delete(ref);
+                    this.unsubscribe(dependant)
                 else
                 {
-                    deref(this, value)
+                    deref(this as any,value)
                 }
-            }
+            
+                dependant = dependant.next;
         }
 
         return this;
@@ -289,12 +273,13 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
     promise(): Promise<T>
     {
         let resolve: (arg0: T) => void;
+        let reference;
         const subscriber = (source: Dirtyable, v: T) =>
         {
-            this.unsubscribe(subscriber);
+            this.unsubscribe(reference);
             resolve(v);
         }
-        this.subscribe(subscriber);
+        reference = this.subscribe(subscriber);
         return new Promise((_resolve) =>
         {
             resolve = _resolve

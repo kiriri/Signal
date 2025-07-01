@@ -66,8 +66,7 @@ export class Computed extends Subscribable {
         if (this._dirty === "first") {
             this._get(); // initialize subscribers 
         }
-        super.subscribe(arguments[0]);
-        return this;
+        return super.subscribe(arguments[0]);
     }
     /**
      * Computes the current value of the computed signal and subscribes to any signals it depends on.
@@ -79,60 +78,39 @@ export class Computed extends Subscribable {
         const global_listeners = Subscribable.global_listeners = [];
         Subscribable.global_listeners = global_listeners;
         let value = this.fn();
-        // Set all states to 0.
-        for (let sub of this.subscribed_to.keys()) {
-            this.subscribed_to.set(sub, 0);
-        }
-        for (let sub of global_listeners) {
-            if (this.subscribed_to.has(sub)) {
+        // let value = 0 as any;
+        const subscribed_to = this.subscribed_to;
+        // for (let sub of subscribed_to)
+        // {
+        //     sub[1].count = 0;
+        // }
+        const length = global_listeners.length;
+        for (let i = 0; i < length; i++) {
+            const sub = global_listeners[i];
+            const o = subscribed_to.get(sub);
+            if (o) {
                 // mark it as unchanged
-                if (this.subscribed_to.get(sub) === 0)
-                    this.subscribed_to.set(sub, 1);
+                o.count = 1;
             }
             else {
                 // specially mark it as new.
-                this.subscribed_to.set(sub, -1);
+                subscribed_to.set(sub, {
+                    count: -1,
+                    ref: sub.subscribe(this)
+                });
             }
         }
-        for (let [signal, status] of this.subscribed_to) {
-            switch (status) {
-                // Newly added
-                case -1:
-                    signal.subscribe(this);
-                    break;
-                // Status 0 means it's no longer used
-                case 0:
-                    signal.unsubscribe(this);
-                    break;
-                // We can ignore 1 (same old)
+        for (let o of subscribed_to) {
+            const status = o[1];
+            const signal = o[0];
+            // Status 0 means it's no longer used
+            if (status.count === 0) {
+                signal.unsubscribe(status.ref);
+                subscribed_to.delete(signal);
             }
+            // Set all states to 0 for the next time around.
+            status.count = 0;
         }
-        // let unique_subscription: Subscribable<any>[] = [];
-        // const set = new Set(this.subscribed_to);
-        // const new_set = new Set(global_listeners);
-        // for (let i = 0; i < this.subscribed_to.length; i++)
-        // {
-        //     const signal = this.subscribed_to[i];
-        //     if (!new_set.has(signal))
-        //     {
-        //         signal.unsubscribe(this)
-        //     }
-        //     else
-        //     {
-        //         unique_subscription.push(signal);
-        //     }
-        // }
-        // for (let i = 0; i < global_listeners.length; i++)
-        // {
-        //     const signal = global_listeners[i];
-        //     if (!set.has(signal))
-        //     {
-        //         signal.subscribe(this);
-        //         set.add(signal);
-        //         unique_subscription.push(signal);
-        //     }
-        // }
-        // this.subscribed_to = unique_subscription;
         // If this was called inside another computed signal, switch back to that ones listeners so it can continue on.
         // If it was not inside another listener, set listeners to undefined!
         Subscribable.global_listeners = parent_listeners;
@@ -146,8 +124,8 @@ export class Computed extends Subscribable {
      */
     destroy() {
         this._dirty = false;
-        for (let sub of [...this.subscribed_to.keys()]) {
-            sub.unsubscribe(this);
+        for (let sub of this.subscribed_to) {
+            sub[0].unsubscribe(sub[1].ref);
         }
         this.subscribed_to.clear();
     }

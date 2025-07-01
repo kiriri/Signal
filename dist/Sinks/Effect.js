@@ -32,8 +32,7 @@ export class Effect {
                     this.fn(this._source_cache);
                 });
             };
-            this._updaters[key] = update_key_function;
-            sources[key].subscribe(update_key_function);
+            this._updaters[key] = sources[key].subscribe(update_key_function);
         }
     }
     initialize() {

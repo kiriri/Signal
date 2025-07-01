@@ -1,4 +1,4 @@
-import { Subscribable } from "../Core/Subscribable";
+import { I_Subscribable, LinkedList, Subscribable } from "../Core/Subscribable";
 type MappedSignals<Inputs extends Record<string, Subscribable<any>>> = {
     [K in keyof Inputs]: Inputs[K] extends Subscribable<infer U> ? U : Inputs[K] extends {
         get(): infer U;
@@ -11,7 +11,9 @@ export declare class Effect<Inputs extends Record<string, Subscribable<any>>, T>
     readonly sources: Inputs;
     fn: (v: MappedSignals<Inputs>) => T;
     _source_cache: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>;
-    _updaters: Record<keyof Inputs, (source: Subscribable<T>, value: T) => any>;
+    _updaters: {
+        [x: string]: LinkedList<WeakRef<(source: I_Subscribable<any>, value: any) => any | void>>;
+    };
     _dirty: boolean;
     _initialized: boolean;
     /**

@@ -1,10 +1,13 @@
-import { Dirtyable, I_Subscribable, StatefulSubscribable, Subscribable } from "./Subscribable";
+import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable";
 /**
  * Represents a computed signal that dynamically computes its value based on other signals.
  */
 export declare class Computed<T> extends Subscribable<T> implements StatefulSubscribable<T>, Dirtyable {
-    subscribed_to: Map<Subscribable<any>, number>;
-    fn: () => T;
+    subscribed_to: Map<Subscribable<any>, {
+        ref: any;
+        count: number;
+    }>;
+    readonly fn: () => T;
     _dirty: boolean | "first";
     _cache: T;
     _eager: boolean;
@@ -23,8 +26,8 @@ export declare class Computed<T> extends Subscribable<T> implements StatefulSubs
      */
     dirty(source?: I_Subscribable<any>): this;
     get(): T;
-    subscribe(subscribable: Dirtyable): this;
-    subscribe(subscribable: (source: I_Subscribable<T>, value: T) => any | void): this;
+    subscribe(subscribable: Dirtyable): LinkedList<WeakRef<Dirtyable>>;
+    subscribe(subscribable: (source: I_Subscribable<T>, value: T) => any | void): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T) => any | void>>;
     /**
      * Computes the current value of the computed signal and subscribes to any signals it depends on.
      * @returns The current value of the computed signal.
