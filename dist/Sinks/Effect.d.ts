@@ -12,7 +12,7 @@ export declare class Effect<Inputs extends Record<string, Subscribable<any>>, T>
     fn: (v: MappedSignals<Inputs>) => T;
     _source_cache: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>;
     _updaters: {
-        [x: string]: LinkedList<WeakRef<(source: I_Subscribable<any>, value: any) => any | void>>;
+        [x: string]: LinkedList<WeakRef<(source: I_Subscribable<any>, value: any, ref: LinkedList<T>) => any | void>>;
     };
     _dirty: boolean;
     _initialized: boolean;

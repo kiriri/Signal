@@ -10,7 +10,7 @@ export class Effect<Inputs extends Record<string, Subscribable<any>>, T>
     _source_cache: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never> = {} as any;
 
     _updaters: { 
-        [x: string]: LinkedList<WeakRef<(source: I_Subscribable<any>, value: any) => any | void>>; 
+        [x: string]: LinkedList<WeakRef<(source: I_Subscribable<any>, value: any, ref: LinkedList<T>) => any | void>>; 
     } = {};
 
     // Dirty in this case just means that it has registered the deferred emit function.
@@ -29,7 +29,7 @@ export class Effect<Inputs extends Record<string, Subscribable<any>>, T>
     {
         for (let key in sources)
         {
-            let update_key_function = (signal,value)=>{
+            let update_key_function = (signal,value,ref)=>{
                 this._source_cache[key] = value;
 
                 if(this._dirty)

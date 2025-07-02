@@ -1,4 +1,4 @@
-import { I_Subscribable, StatefulSubscribable, Subscribable } from "./Subscribable";
+import { LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable";
 /**
  * Represents a real Subscribable value that is stored in this Signal.
  */
@@ -22,7 +22,7 @@ export declare class NativeSignal<T> extends Subscribable<T> implements Stateful
      */
     set(value: T): void;
     update(fn: (v: T) => T): void;
-    dirty(source?: I_Subscribable<any>): this;
+    dirty(source: this, ref?: LinkedList<T>, value?: T): this;
     emit(value?: T): this;
 }
 export type ReadonlySignal<T> = Omit<NativeSignal<T>, "set">;

@@ -6,14 +6,15 @@ import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribab
 /**
  * Represents a computed signal that dynamically computes its value based on other signals.
  */
-export class Computed<T> extends Subscribable<T> implements StatefulSubscribable<T>, Dirtyable
+export class Computed<T, CONTEXT=any> extends Subscribable<T> implements StatefulSubscribable<T>, Dirtyable
 {
     // This computed signal is currently listening to any change in any of these subscribables.
     // These subscribables are bound up in fn, so we don't have to worry about weakly referencing them here either.
     subscribed_to: { signal: Subscribable<any>, ref: any}[] = [];
 
     // The function that is called to compute the current value of this Subscribable.
-    readonly fn: () => T;
+    readonly fn: (self:CONTEXT) => T;
+    readonly context:CONTEXT;
 
     _dirty: boolean | "first" = true;
     _cache !: T;
@@ -24,11 +25,12 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
      * @param fn - The function that computes the value of the computed signal.
      * @param [eager=false] If true, acts like a sink/effect, as in it does not wait to run the function until get() is called. Default false.
      */
-    constructor(fn: () => T, eager = false)
+    constructor(fn: (self:CONTEXT) => T, context?:CONTEXT, eager = false)
     {
         super();
 
         this.fn = fn;
+        this.context = context;
         this._eager = eager;
 
         // Instantly run the function to subscribe to the relevant dependencies.
@@ -50,14 +52,14 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
      * @param source 
      * @returns 
      */
-    override dirty(source?: I_Subscribable<any>)
+    override dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>)
     {
         if (this._dirty)
             return;
         this._dirty = true;
 
         // Propagate the dirty state.
-        super.dirty(source);
+        super.dirty(source, ref);
 
         // recalculate and propagate when we can be sure that all dependencies updated.
         if (this.subscribers !== undefined || this._eager)
@@ -88,11 +90,11 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
         subscribable: Dirtyable
     ): LinkedList<WeakRef<Dirtyable>>;
     override subscribe(
-        subscribable: (source: I_Subscribable<T>, value: T) => any | void
-    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T) => any | void>>;
+        subscribable: (source: I_Subscribable<T>, value: T, ref: LinkedList<T>) => any | void
+    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<T>) => any | void>>;
     override subscribe(
-        fn: ((source: I_Subscribable<T>, value: T) => any) | Dirtyable
-    ): LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T) => any)>>
+        fn: ((source: I_Subscribable<T>, value: T, ref: LinkedList<T>) => any) | Dirtyable
+    ): LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T, ref: LinkedList<T>) => any)>>
     {
         if (this._dirty === "first")
         {
@@ -114,7 +116,7 @@ export class Computed<T> extends Subscribable<T> implements StatefulSubscribable
         const global_listeners = Subscribable.global_listeners = <Subscribable<any>[]>[];
         Subscribable.global_listeners = global_listeners;
 
-        let value = this.fn();
+        let value = this.fn(this.context);
 
         // subscribing and unsubscribing is *really* optimized, making it faster
         // than any Set/Map difference we could possibly come up with here.

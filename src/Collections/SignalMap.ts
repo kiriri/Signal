@@ -176,7 +176,7 @@ implements StatefulSubscribable<Map<K, V>>, I_NativeCollection<[K,V],MapEvents<K
     }
 
     queued = false;
-    override dirty(source?: I_Subscribable<any>)
+    override dirty(source?: I_Subscribable<any>, ref?:any)
     {
         // If it's queued for emit(),
         // then it stands to reason that it has propagated dirty as well.
@@ -189,7 +189,7 @@ implements StatefulSubscribable<Map<K, V>>, I_NativeCollection<[K,V],MapEvents<K
             Subscribable.register_async_emit(() => this.emit());
         }
 
-        return super.dirty(source);
+        return super.dirty(source, ref);
     }
 
     override emit(value: Map<K,V> = this._internal): this

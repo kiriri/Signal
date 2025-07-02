@@ -2,12 +2,13 @@ import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribab
 /**
  * Represents a computed signal that dynamically computes its value based on other signals.
  */
-export declare class Computed<T> extends Subscribable<T> implements StatefulSubscribable<T>, Dirtyable {
+export declare class Computed<T, CONTEXT = any> extends Subscribable<T> implements StatefulSubscribable<T>, Dirtyable {
     subscribed_to: {
         signal: Subscribable<any>;
         ref: any;
     }[];
-    readonly fn: () => T;
+    readonly fn: (self: CONTEXT) => T;
+    readonly context: CONTEXT;
     _dirty: boolean | "first";
     _cache: T;
     _eager: boolean;
@@ -16,7 +17,7 @@ export declare class Computed<T> extends Subscribable<T> implements StatefulSubs
      * @param fn - The function that computes the value of the computed signal.
      * @param [eager=false] If true, acts like a sink/effect, as in it does not wait to run the function until get() is called. Default false.
      */
-    constructor(fn: () => T, eager?: boolean);
+    constructor(fn: (self: CONTEXT) => T, context?: CONTEXT, eager?: boolean);
     /**
      * Only propagates dirty state when its not already propagated
      * ( ie no dependent signal has bothered to get this computed since )
@@ -24,10 +25,10 @@ export declare class Computed<T> extends Subscribable<T> implements StatefulSubs
      * @param source
      * @returns
      */
-    dirty(source?: I_Subscribable<any>): void;
+    dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>): void;
     get(): T;
     subscribe(subscribable: Dirtyable): LinkedList<WeakRef<Dirtyable>>;
-    subscribe(subscribable: (source: I_Subscribable<T>, value: T) => any | void): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T) => any | void>>;
+    subscribe(subscribable: (source: I_Subscribable<T>, value: T, ref: LinkedList<T>) => any | void): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<T>) => any | void>>;
     /**
      * Computes the current value of the computed signal and subscribes to any signals it depends on.
      * @returns The current value of the computed signal.

@@ -7,8 +7,83 @@ import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "
 // TODO : Maps need to use the same entry in every single event or else we can't store related
 // state info.
 
+export type ReducerRef<INPUT> = LinkedList<INPUT> & {last:INPUT};
 
+export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
+{
+    readonly identityValue : INPUT;
+    readonly merger : (value:INPUT, last_value:INPUT, 
+        result:OUTPUT,
+        source:I_Subscribable<INPUT>, ref:ReducerRef<INPUT>, target:this) => OUTPUT;
 
+    value : OUTPUT;
+
+    // eager : boolean;
+
+    constructor(
+        identityValue:INPUT,
+        merger : (value:INPUT, last_value:INPUT, 
+            result:OUTPUT,
+            source:I_Subscribable<INPUT>, ref:ReducerRef<INPUT>, target:Reducer<INPUT,OUTPUT>) => OUTPUT,
+        value:OUTPUT,
+        // eager:boolean = false
+    )
+    {
+        super();
+        this.identityValue = identityValue;
+        this.merger = merger;
+        this.value = value;
+        // this.eager = eager;
+    }
+
+    register_collection(source: I_NativeCollection<INPUT>)
+    {
+
+    }
+
+    _self : WeakRef<this>;
+    
+    register_source(source: I_Subscribable<INPUT> | NativeSignal<INPUT>)
+    {
+        const ref = source.subscribe(this.on_change);
+
+        ref["last"] = this.identityValue;
+        // putting the reducer in the ref and using one global function is cheapter than instantiating a new on_change function for each Reducer.
+        // BUG : Except this wil stop Reducer from being GCed while its sources still exist. So we have to add a WeakRef. Which is expensive af
+        ref["reducer"] = this._self ??= new WeakRef(this);
+
+        return ref;
+    }
+
+    
+
+    unregister_source()
+    {
+
+    }
+
+    // dirty(source: I_Subscribable<INPUT>, ref:LinkedList<INPUT>, value?:INPUT): void
+    // {
+    //     const real_ref = ref as (typeof ref) & {last:INPUT};
+        
+        
+    //     // eager for now
+    //     // this.merger(source,real_ref,this);
+    //     ref["last"] = source["get"]?.() ?? this.identityValue;
+
+    //     // How does this work
+    //     // Dirty does not actually contain the value most of the time.
+    //     // dirty does not get called in situation like Subscribable.emit()
+    // }
+
+    on_change(source: I_Subscribable<INPUT>, value: INPUT, ref: ReducerRef<INPUT>)
+    {
+        let last_value = ref["last"] as INPUT;
+        // TODO : There's a tipping point where creating a bound on_change function outweighs the costs of deref(). But it's in the 100s of calls. See if counting + replacing listeners is worth it. We could add the bound function to ref and check for it in the unbound on_change function. Or unsubscribe + resubscribe (might be cheaper).
+        let self : this = ref["reducer"].deref()!;
+        this.value = self.merger(value,last_value,this.value, source,ref,this);
+    }
+}
 
 
 
@@ -51,10 +126,10 @@ export function reduce_generic(
     if (dependencies && dependencies.length > 0)
     {
         const dependency_handler = {
-            dirty: function (source?: I_Subscribable<any>)
+            dirty: function (source: I_Subscribable<any>,ref?: LinkedList<any>, value?: any)
             {
                 fully_dirty = true;
-                output.dirty();
+                output.dirty(source,ref,value);
             }
         }
 
@@ -75,7 +150,7 @@ export function reduce_generic(
             if(fully_dirty)
                 return;
             dirty.set(source, value);
-            output.dirty();
+            output.dirty(source,undefined, value);
         }
 
         function apply_all_dirty()
@@ -171,7 +246,7 @@ export function reduce_generic(
     else
     {
 
-        function apply_value(sourceItem, value, unpack = unpackSignals)
+        function apply_value(sourceItem, value, ref?: LinkedList<any>, unpack = unpackSignals)
         {
             if (unpack)
             {
@@ -233,7 +308,7 @@ export function reduce_generic(
                     }
                     else
                     {
-                        apply_value(original_value, identityValue, false);
+                        apply_value(original_value, identityValue, undefined, false);
                     }
                     break;
                 case "update":
@@ -473,10 +548,10 @@ export function reduce_fast<
     if (dependends_on.length > 0)
     {
         const dependency_handler = {
-            dirty: function (source?: I_Subscribable<any>)
+            dirty: function (source: NativeSignal<ConsValue>,ref, value)
             {
                 fully_dirty = true;
-                result.dirty();
+                result.dirty(source,ref, value);
             }
         }
 

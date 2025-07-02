@@ -26,7 +26,7 @@ class FakeWeakRef<T>
  */
 export interface Dirtyable
 {
-    dirty(source?: I_Subscribable<any>): void;
+    dirty(source: I_Subscribable<any>, ref?: LinkedList<any>, value?:any): void;
     // _dirty:boolean;
 }
 
@@ -42,15 +42,15 @@ export interface I_Subscribable<T>
         subscribable: Dirtyable
     ): LinkedList<WeakRef<Dirtyable>>;
     subscribe(
-        subscribable: (source: I_Subscribable<T>, value: T) => any | void
-    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T) => any | void>>;
+        subscribable: (source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void
+    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>;
     subscribe(
-        fn: ((source: I_Subscribable<T>, value: any) => any) | Dirtyable
-    ): LinkedList<WeakRef<Dirtyable|((source: I_Subscribable<T>, value: T) => any | void)>>;
+        fn: ((source: I_Subscribable<T>, value: any, ref: LinkedList<any>) => any) | Dirtyable
+    ): LinkedList<WeakRef<Dirtyable|((source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void)>>;
 
-    unsubscribe(reference: LinkedList<WeakRef<Dirtyable|((source: I_Subscribable<T>, value: T) => any | void)>>): this;
+    unsubscribe(reference: LinkedList<WeakRef<Dirtyable|((source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void)>>): this;
 
-    dirty(source?: I_Subscribable<any>);
+    dirty(source: I_Subscribable<any>, ref?: LinkedList<any>, value?:any);
 }
 
 /**
@@ -97,7 +97,7 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
 
     // These functions want to be called when this Subscribable's value changes.
     // We store them as WeakRefs so they get GCed when nobody uses the object anymore.
-    subscribers: LinkedList<WeakRef<(source: I_Subscribable<T>, value: any) => any>> | undefined;
+    subscribers: LinkedList<WeakRef<(source: I_Subscribable<T>, value: any, ref: LinkedList<any>) => any>> | undefined;
     dependants: LinkedList<WeakRef<Dirtyable>> | undefined;
 
     // event subscribers
@@ -163,11 +163,11 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
         subscribable: Dirtyable
     ): LinkedList<WeakRef<Dirtyable>>;
     subscribe(
-        subscribable: (source: I_Subscribable<T>, value: T) => any | void
-    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T) => any | void>>;
+        subscribable: (source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void
+    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>;
     subscribe(
-        fn: ((source: I_Subscribable<T>, value: T) => any) | Dirtyable
-    ) : LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T) => any)>>
+        fn: ((source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any) | Dirtyable
+    ) : LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any)>>
     {
         
 
@@ -225,9 +225,10 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
 
     /**
      * Call this whenever this subscribable or any of its dependencies have changed.
-     * This should propagate all the way through all subscribable which depend on this.
+     * This is only used for stateful subscribables.
+     * This should propagate all the way through all subscribables which depend on this.
      */
-    dirty(source?: I_Subscribable<any>)
+    dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>)
     {
         let dependant = this.dependants;
         // Propagate dirty state to all dependent subscribables.
@@ -237,7 +238,7 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
             if (deref === undefined)
                 this.unsubscribe(dependant)
             else
-                deref.dirty(this as any)
+                deref.dirty(this as any, dependant)
     
             dependant = dependant.next;
         }
@@ -245,23 +246,37 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
 
     /**
      * Emits a new value and notifies all subscribers immediately
+     * Use this function instead of dirty if your subscribable is stateless.
      * @param value - The new value to emit.
      */
     emit(value: T)
     {
-        let dependant = this.subscribers;
+        let subscriber = this.subscribers;
         // Propagate dirty state to all dependent subscribables.
-        while (dependant !== undefined)
+        while (subscriber !== undefined)
         {
-                const deref = dependant.value.deref();
+                const deref = subscriber.value.deref();
                 if (deref === undefined)
-                    this.unsubscribe(dependant)
+                    this.unsubscribe(subscriber)
                 else
-                    deref(this as any,value)
+                    deref(this as any,value, subscriber)
                 
             
-                dependant = dependant.next;
+                subscriber = subscriber.next;
         }
+
+        // let dependant = this.dependants;
+        // // Propagate dirty state to all dependent subscribables.
+        // while (dependant !== undefined)
+        // {
+        //     const deref = dependant.value.deref();
+        //     if (deref === undefined)
+        //         this.unsubscribe(dependant)
+        //     else
+        //         deref.dirty(this as any, dependant, value)
+    
+        //     dependant = dependant.next;
+        // }
 
         return this;
     }

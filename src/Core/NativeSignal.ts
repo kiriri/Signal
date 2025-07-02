@@ -1,6 +1,6 @@
 
 
-import { Dirtyable, I_Subscribable, StatefulSubscribable, Subscribable } from "./Subscribable";
+import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable";
 
 /**
  * Represents a real Subscribable value that is stored in this Signal. 
@@ -43,7 +43,7 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
         if (value === this._value)
             return;
         this._value = value;
-        this.dirty();
+        this.dirty(this,undefined,value);
     }
 
     update(fn: (v: T) => T)
@@ -53,10 +53,10 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
         if (value === this._value)
             return;
         this._value = value;
-        this.dirty()
+        this.dirty(this,undefined,value)
     }
 
-    override dirty(source?: I_Subscribable<any>)
+    override dirty(source: this, ref?: LinkedList<T>, value?:T)
     {
         // If it's queued for emit(), 
         // then it stands to reason that it has propagated dirty as well.
@@ -69,7 +69,7 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
             Subscribable.register_async_emit(() => this.emit());
         }
 
-        super.dirty(source);
+        super.dirty(source,ref);
 
         return this;
     }

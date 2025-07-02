@@ -1,5 +1,5 @@
 import { ReadonlySignal } from "../Core/NativeSignal";
-import { I_Subscribable, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
+import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 import type { I_NativeCollection } from "./Collection";
 export type SetEvents<T> = {
     add: {
@@ -21,7 +21,7 @@ export declare class SignalSet<T> extends Subscribable<Set<T>, SetEvents<T>> imp
     delete(value: T): void;
     clear(): void;
     queued: boolean;
-    dirty(source?: I_Subscribable<any>): void | this;
+    dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>): void | this;
     emit(value?: Set<T>): this;
     has(value: T): boolean;
     count(fn: (v: T) => number, subscribe?: boolean): ReadonlySignal<number>;
