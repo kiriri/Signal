@@ -28,7 +28,7 @@ export declare class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT> {
         source: typeof source;
     };
     unregister_source(ref: ReturnType<this["register_source"]>): void;
-    on_change(this: undefined, source: I_Subscribable<INPUT>, value: INPUT, ref: ReducerRef<INPUT>): void;
+    on_change(this: undefined, source: I_GettableSubscribable<INPUT>, value: INPUT, ref: ReducerRef<INPUT>): void;
 }
 /**
  *

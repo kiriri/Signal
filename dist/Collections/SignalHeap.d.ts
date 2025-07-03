@@ -1,26 +1,25 @@
 import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 import type { I_NativeCollection } from "./Collection";
-export type SetEvents<T> = {
+export type HeapEvents<T> = {
     add: {
         event: "add";
         value: T;
+        ref: LinkedList<T>;
     };
     delete: {
         event: "delete";
         value: T;
+        ref: LinkedList<T>;
     };
 };
-export declare class SignalSet<T> extends Subscribable<Set<T>, SetEvents<T>> implements StatefulSubscribable<Set<T>>, I_NativeCollection<T, SetEvents<T>> {
-    readonly _internal: Set<T>;
+export declare class SignalHeap<T> extends Subscribable<Iterable<T>, HeapEvents<T>> implements StatefulSubscribable<Iterable<T>>, I_NativeCollection<T, HeapEvents<any>> {
+    items: LinkedList<T> | undefined;
     constructor(items?: Iterable<T> | null | undefined);
-    get(): Set<T>;
-    _add(value: T): void;
-    add(value: T): void;
-    _delete(value: T): void;
-    delete(value: T): void;
+    get(): Iterable<T>;
+    add(value: T): LinkedList<T>;
+    delete(value: LinkedList<T>): void;
     clear(): void;
     queued: boolean;
     dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>): void | this;
-    emit(value?: Set<T>): this;
-    has(value: T): boolean;
+    emit(value?: Iterable<T>): this;
 }

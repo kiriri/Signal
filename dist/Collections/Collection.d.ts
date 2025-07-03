@@ -15,6 +15,4 @@ export type ReqColTypes<T> = {
 };
 export interface I_NativeCollection<T, Events extends ReqColTypes<T> = ReqColTypes<T>> extends Eventable<Events> {
     get(): Iterable<T>;
-    _add(value: T): any;
-    _delete(value: T): any;
 }

@@ -23,6 +23,6 @@ export interface I_NativeCollection<T, Events extends ReqColTypes<T> = ReqColTyp
     // _on_change_instant: Subscribable<Events[keyof Events]>;
     get(): Iterable<T>;
 
-    _add(value:T);
-    _delete(value:T);
+    // _add(value:T);
+    // _delete(value:T);
 }

@@ -179,7 +179,7 @@ export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
     //     // dirty does not get called in situation like Subscribable.emit()
     // }
 
-    on_change(this:undefined, source: I_Subscribable<INPUT>, value: INPUT, ref: ReducerRef<INPUT>)
+    on_change(this:undefined, source: I_GettableSubscribable<INPUT>, value: INPUT, ref: ReducerRef<INPUT>)
     {
         let last_value = ref["last"] as INPUT;
         // TODO : There's a tipping point where creating a bound on_change function outweighs the costs of deref(). But it's in the 100s of calls. See if counting + replacing listeners is worth it. We could add the bound function to ref and check for it in the unbound on_change function. Or unsubscribe + resubscribe (might be cheaper).
