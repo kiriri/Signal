@@ -23,6 +23,6 @@ export declare class NativeSignal<T> extends Subscribable<T> implements Stateful
     set(value: T): void;
     update(fn: (v: T) => T): void;
     dirty(source: this, ref?: LinkedList<T>, value?: T): this;
-    emit(value?: T): this;
+    on_emit(context: this): void;
 }
 export type ReadonlySignal<T> = Omit<NativeSignal<T>, "set">;

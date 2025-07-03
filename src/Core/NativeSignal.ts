@@ -66,7 +66,7 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
         if (this.subscribers !== undefined)
         {
             this.queued = true;
-            Subscribable.register_async_emit(() => this.emit());
+            Subscribable.register_async_emit(this.on_emit, this);
         }
 
         super.dirty(source,ref);
@@ -74,12 +74,18 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
         return this;
     }
 
-
-    override emit(value: T = this._value)
+    on_emit(context:this)
     {
-        this.queued = false;
-        return super.emit(value);
+        context.queued = false;
+        context.emit(context._value);
     }
+
+
+    // override emit(value: T = this._value)
+    // {
+    //     this.queued = false;
+    //     return super.emit(value);
+    // }
 }
 
 export type ReadonlySignal<T> = Omit<NativeSignal<T>,"set">;

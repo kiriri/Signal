@@ -37,7 +37,7 @@ export declare class Subscribable<T, Events extends Record<string, {
 }> = {}> implements I_Subscribable<T>, Eventable<Events> {
     static global_listeners: Subscribable<any, any>[];
     static waiting_to_emit: Function[];
-    static register_async_emit(fn: Function): void;
+    static register_async_emit(fn: Function, context?: any): void;
     subscribers: LinkedList<WeakRef<(source: I_Subscribable<T>, value: any, ref: LinkedList<any>) => any>> | undefined;
     inst_subscribers: LinkedList<WeakRef<(source: I_Subscribable<T>, value: any, ref: LinkedList<any>) => any>> | undefined;
     dependants: LinkedList<WeakRef<Dirtyable>> | undefined;

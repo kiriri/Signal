@@ -2,6 +2,8 @@ import { Eventable } from "./Eventable";
 
 export type StatefulSubscribable<T> = I_Subscribable<T> & { get(): T };
 
+const IS_NODE = typeof process === 'object';
+
 // This is a fake WeakRef. Using the real one results in bugs:
 // We want subscribers to disappear from the subscribers array when they are no longer used. But we don't want this subscribable,
 // which active subscribers listen to, to be removed. WeakRefs are weak in both directions! Therefore we need to store "Is listening to"
@@ -78,13 +80,14 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
 
     // 
     static waiting_to_emit: Function[] = [];
+    
 
     // To avoid updating say an effect every time its dependency changes while the same function
     // is processing, it will register its callback with an async delay, 
     // which in reality should wait until whatever sync function is running is done.
     // This means the effect only triggers once after all dependencies were set, instead of once
     // for each dependency that changed.
-    static register_async_emit(fn: Function)
+    static register_async_emit(fn: Function, context?:any)
     {
         if (this.waiting_to_emit.length <= 0)
         {
@@ -94,11 +97,11 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
                 this.waiting_to_emit = [];
                 for (let f of emits)
                 {
-                    f();
+                    f(context);
                 }
             }
             // setImmediate is faster but only works reliably in node
-            if (typeof process === 'object')
+            if (IS_NODE)
                 setImmediate(a);
             else // firefox breaks terribly if setImmediate is used.
                 setTimeout(a, 0);
@@ -263,7 +266,7 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
             const previous_first_item = this.subscribers;
 
             const new_item: LinkedList<WeakRef<typeof fn>> = this.subscribers = {
-                next: this.subscribers!,
+                next: previous_first_item,
                 value: new WeakRef(fn)
             }
 
@@ -276,7 +279,7 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
         const previous_first_item = this.dependants;
 
         const new_item: LinkedList<WeakRef<typeof fn>> = this.dependants = {
-            next: this.dependants!,
+            next: previous_first_item,
             value: new WeakRef(fn)
         }
 

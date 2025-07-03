@@ -34,7 +34,7 @@ export class Effect<Inputs extends Record<string, Subscribable<any>>, T>
                 this.initialize();
             this.fn(this._source_cache, context );
         };
-
+        
         let update_key_function = (signal,value,ref)=>{
             // @ts-ignore
             this._source_cache[ref.key] = value;
@@ -47,10 +47,8 @@ export class Effect<Inputs extends Record<string, Subscribable<any>>, T>
             Subscribable.register_async_emit(async_caller);
         };
 
-
         for (let key in sources)
         {
-            
             let ref = this._updaters[key] = sources[key].subscribe(update_key_function);
             // @ts-ignore
             ref.key = key;
