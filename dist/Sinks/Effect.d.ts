@@ -9,7 +9,7 @@ type MappedSignals<Inputs extends Record<string, Subscribable<any>>> = {
  */
 export declare class Effect<Inputs extends Record<string, Subscribable<any>>, T> {
     readonly sources: Inputs;
-    fn: (v: MappedSignals<Inputs>) => T;
+    fn: (v: MappedSignals<Inputs>, self: any) => T;
     _source_cache: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>;
     _updaters: {
         [x: string]: LinkedList<WeakRef<(source: I_Subscribable<any>, value: any, ref: LinkedList<T>) => any | void>>;
@@ -20,7 +20,7 @@ export declare class Effect<Inputs extends Record<string, Subscribable<any>>, T>
      * Creates a new Computed signal with a function that computes its value.
      * @param fn - The function that computes the value of the computed signal.
      */
-    constructor(sources: Inputs, fn: (v: MappedSignals<Inputs>) => T);
+    constructor(sources: Inputs, fn: (v: MappedSignals<Inputs>, self: any) => T, context?: any);
     initialize(): void;
     /**
      * Instantly removes all event listener references.

@@ -458,21 +458,6 @@ tests.push(async function test3()
 
     await assertGcCount(1);
 
-    async function scope2()
-    {
-        signal1.set(2);
-        let countedSet1 = set1.count((v) => v.get() > 1 ? 1 : 0);
-
-
-        set1.add(signal1);
-        signal2.set(2);
-
-        // Problem : Get should circumvent need for wait...
-        // await wait(2);
-        console.log(countedSet1.get());
-    }
-
-    await scope2();
 }
 );
 

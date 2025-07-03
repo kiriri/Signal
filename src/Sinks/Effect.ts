@@ -24,28 +24,36 @@ export class Effect<Inputs extends Record<string, Subscribable<any>>, T>
     constructor(
         public readonly sources: Inputs,
         // The function that is called to compute the current value of this Subscribable.
-        public fn: (v: MappedSignals<Inputs>) => T
+        public fn: (v: MappedSignals<Inputs>, self:any) => T,
+        context ?: any
     )
     {
+        const async_caller = ()=>{
+            this._dirty = false;
+            if(this._initialized === false)
+                this.initialize();
+            this.fn(this._source_cache, context );
+        };
+
+        let update_key_function = (signal,value,ref)=>{
+            // @ts-ignore
+            this._source_cache[ref.key] = value;
+
+            if(this._dirty)
+                return;
+    
+            this._dirty = true;
+    
+            Subscribable.register_async_emit(async_caller);
+        };
+
+
         for (let key in sources)
         {
-            let update_key_function = (signal,value,ref)=>{
-                this._source_cache[key] = value;
-
-                if(this._dirty)
-                    return;
-        
-                this._dirty = true;
-        
-                Subscribable.register_async_emit(()=>{
-                    this._dirty = false;
-                    if(!this._initialized)
-                        this.initialize();
-                    this.fn(this._source_cache );
-                });
-            };
-
-            this._updaters[key] = sources[key].subscribe(update_key_function);
+            
+            let ref = this._updaters[key] = sources[key].subscribe(update_key_function);
+            // @ts-ignore
+            ref.key = key;
         }
     }
 
@@ -55,7 +63,8 @@ export class Effect<Inputs extends Record<string, Subscribable<any>>, T>
         for (let key in sources)
         {
             // Not all subscribables have a value at all times.
-            this._source_cache[key] = (sources[key] as any)["get"]?.() ?? null;
+            if(!(key in this._source_cache))
+                this._source_cache[key] = (sources[key] as any)["get"]?.() ?? null;
         }
 
         this._initialized = true;
