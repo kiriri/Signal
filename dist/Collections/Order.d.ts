@@ -1,5 +1,4 @@
 import { Subscribable } from "../Core/Subscribable";
-import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 import type { I_NativeCollection } from "../Collections/Collection";
 export declare class OrderNode<T> implements OrderNode<T> {
     value: T;
@@ -45,21 +44,6 @@ export declare class Order<T> extends Subscribable<Map<T, OrderNode<T>>, OrderEv
     nodes: Map<T, OrderNode<T>>;
     first: OrderNode<T>;
     last: OrderNode<T>;
-    _on_change: BufferedSubscribable<OrderEvents<T>[keyof OrderEvents<T>]>;
-    _on_change_instant: Subscribable<{
-        event: "add";
-        node: OrderNode<T>;
-        value: T;
-    } | {
-        event: "delete";
-        node: OrderNode<T>;
-        value: T;
-    } | {
-        event: "move";
-        value: T;
-        prevPrev: OrderNode<T>;
-        prevNext: OrderNode<T>;
-    }, {}>;
     get(): T[];
     _createNode(value: T): OrderNode<T>;
     _delete(value: T): void;

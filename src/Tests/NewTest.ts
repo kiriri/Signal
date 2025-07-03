@@ -1,6 +1,6 @@
 // npx tsx --expose-gc ./Tests/NewTest.ts
 
-import { SignalSet, SignalMap, Order, count, count_fast } from "src/Collections";
+import { SignalSet, SignalMap, Order, Reducer, I_NativeCollection } from "src/Collections";
 import { StatefulSubscribable, NativeSignal, Computed } from "src/Core";
 import { Interval } from "src/Events";
 import { Effect } from "src/Sinks";
@@ -605,6 +605,22 @@ tests.push(async function OrderTest()
 }
 );
 
+function count<T>(collection: I_NativeCollection<T>, fn: { (v: T, prev:T): number; }, map : boolean, identity:T)
+{
+    let reducer = new Reducer(
+        identity,
+        (value, last_value, result) =>
+        {
+            return fn(value,last_value) + result;
+        },
+        0
+    );
+
+    reducer.register_collection(collection,false);
+
+    return reducer;
+}
+
 /**
  * Generic Collection Count
  */
@@ -621,13 +637,23 @@ tests.push(async function OrderTest()
     ]);
     const set = new SignalSet<number>([1, 2, 3]);
 
-    const order_count = count(order, (v) => v);
-    const map_count = count(map, (v) => v[1]);
-    const set_count = count(set, (v) => v);
-
-    // console.log(order_count.get(), map_count.get(), set_count.get())
+    const order_count = count(order, (v,prev) => v-prev, false,0);
+    const map_count = count(map, (v,prev) => v[1]-prev[1], false,["",0] as const);
+    const set_count = count(set, (v,prev) => v-prev, false,0);
 
     assertValue(6, order_count, map_count, set_count);
+
+    order.push(4);
+    set.add(4);
+    map.set("hallo",4);
+    await wait(100);
+    assertValue(10, order_count, map_count, set_count);
+
+    order.push(5);
+    set.add(5);
+    map.set("hola",5);
+    assertValue(15, order_count, map_count, set_count);
+
 }
 );
 

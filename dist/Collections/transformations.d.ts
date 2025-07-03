@@ -1,19 +1,34 @@
 import { NativeSignal } from "../Core/NativeSignal";
 import { I_NativeCollection, ReqColTypes } from "./Collection";
-import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
+import { EventRef, I_GettableSubscribable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 export type ReducerRef<INPUT> = LinkedList<INPUT> & {
     last: INPUT;
 };
 export declare class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT> {
     readonly identityValue: INPUT;
-    readonly merger: (value: INPUT, last_value: INPUT, result: OUTPUT, source: I_Subscribable<INPUT>, ref: ReducerRef<INPUT>, target: this) => OUTPUT;
-    value: OUTPUT;
-    constructor(identityValue: INPUT, merger: (value: INPUT, last_value: INPUT, result: OUTPUT, source: I_Subscribable<INPUT>, ref: ReducerRef<INPUT>, target: Reducer<INPUT, OUTPUT>) => OUTPUT, value: OUTPUT);
-    register_collection(source: I_NativeCollection<INPUT>): void;
+    readonly merger: (value: INPUT, last_value: INPUT, result: OUTPUT, source: I_GettableSubscribable<INPUT> | I_NativeCollection<INPUT>, ref: ReducerRef<INPUT>, target: this) => OUTPUT;
+    _value: OUTPUT;
+    _dirty: boolean;
+    private set;
+    get(): OUTPUT;
+    dirty(source: any, ref: any): void;
+    constructor(identityValue: INPUT, merger: (value: INPUT, last_value: INPUT, result: OUTPUT, source: (I_GettableSubscribable<INPUT>) | I_NativeCollection<INPUT>, ref: ReducerRef<INPUT>, target: Reducer<INPUT, OUTPUT>) => OUTPUT, value: OUTPUT);
+    register_collection(source: I_NativeCollection<INPUT>, mapped: boolean): EventRef<{
+        event: string;
+        value: any;
+    }>;
+    on_collection_change(source: I_NativeCollection<INPUT>, event: {
+        event: string;
+        value?: any;
+    }, ref: EventRef<any>): void;
     _self: WeakRef<this>;
-    register_source(source: I_Subscribable<INPUT> | NativeSignal<INPUT>): LinkedList<WeakRef<(source: I_Subscribable<INPUT>, value: INPUT, ref: LinkedList<any>) => any | void>>;
-    unregister_source(): void;
-    on_change(source: I_Subscribable<INPUT>, value: INPUT, ref: ReducerRef<INPUT>): void;
+    register_source(source: I_Subscribable<INPUT> | NativeSignal<INPUT>): LinkedList<WeakRef<(source: I_Subscribable<INPUT>, value: INPUT, ref: LinkedList<any>) => any | void>> & {
+        last: INPUT;
+        reducer: WeakRef<Reducer<INPUT, OUTPUT>>;
+        source: typeof source;
+    };
+    unregister_source(ref: ReturnType<this["register_source"]>): void;
+    on_change(this: undefined, source: I_Subscribable<INPUT>, value: INPUT, ref: ReducerRef<INPUT>): void;
 }
 /**
  *

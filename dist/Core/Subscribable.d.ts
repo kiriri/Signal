@@ -22,6 +22,12 @@ export interface I_Subscribable<T> {
     unsubscribe(reference: LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void)>>): this;
     dirty(source: I_Subscribable<any>, ref?: LinkedList<any>, value?: any): any;
 }
+export interface I_GettableSubscribable<T> extends I_Subscribable<T> {
+    get(): T;
+}
+export type EventRef<Event> = LinkedList<WeakRef<(source: Subscribable<any, any>, event: Event, ref: EventRef<Event>) => any>> & {
+    event?: string;
+};
 /**
  * Represents a subscribable value that can be observed for changes.
  */
@@ -33,10 +39,31 @@ export declare class Subscribable<T, Events extends Record<string, {
     static waiting_to_emit: Function[];
     static register_async_emit(fn: Function): void;
     subscribers: LinkedList<WeakRef<(source: I_Subscribable<T>, value: any, ref: LinkedList<any>) => any>> | undefined;
+    inst_subscribers: LinkedList<WeakRef<(source: I_Subscribable<T>, value: any, ref: LinkedList<any>) => any>> | undefined;
     dependants: LinkedList<WeakRef<Dirtyable>> | undefined;
-    events: Record<string, ((source: Subscribable<any, any>, event: Events[keyof Events]) => any)[]> | undefined;
-    events2: (WeakRef<(source: Subscribable<any, any>, event: Events[keyof Events]) => any>)[] | undefined;
-    subscribe_event<K extends keyof Event>(fn: (source: Subscribable<any, any>, event: Events[K]) => any, event?: K): this;
+    events: Record<string, EventRef<Events[keyof Events]> | undefined>;
+    any_events: EventRef<undefined> | undefined;
+    /**
+     * Subscribe to a named event, or to any named event if event parameter is left undefined.
+     * Please note that unlike regular value subscribe() hooks, event subscriptions propagate *instantly*.
+     * @param fn
+     * @param event
+     * @returns
+     */
+    subscribe_event<K extends keyof Event>(fn: (source: Subscribable<any, any>, event: Events[K], ref: EventRef<any>) => any, event?: K): EventRef<Events[K]>;
+    /**
+ * Force unsubscribe. This is generally not recommended, as garbage collection
+ * does the same thing automatically.
+ * @param reference
+ */
+    unsubscribe_event(reference: EventRef<any>): this;
+    /**
+     * emit_event will not be inlined, but this function will.
+     * Which makes if(can_emit(e)) emit_event(e) paradoxically faster some of the time than using just emit_event(e).
+     * @param event
+     * @returns
+     */
+    can_emit<K extends keyof Event>(event: Events[K]): boolean;
     emit_event<K extends keyof Event>(event: Events[K]): this;
     /**
      * Subscribes a function to be called when the value of this Subscribable changes.
