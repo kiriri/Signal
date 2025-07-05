@@ -1,11 +1,8 @@
 
 
+# NodeJS
+[] Simplify Subscribable so it can be flattened.
+[] Flatten all performance relevant classes so they don't extend. ~5x creation speed.
 
-
-
-
-- Make sure Eventable (And Subscribable's same implementation) removes null weakRefs.
-
-- Implemented computed in reduce_generic
-- double check sink behaviour : Does Angular integration get triggered correctly?
-- see if you can fix angular peer dependency issues. Maybe compile to a completely separate folder (with its own package.json) and link that?
+# Bun
+[] Try to make all classes have at most 6 fields (huge performance gains, like 4x creation speed)

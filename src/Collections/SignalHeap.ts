@@ -3,6 +3,7 @@ import { Computed } from "../Core/Computed";
 import { NativeSignal, ReadonlySignal } from "../Core/NativeSignal";
 import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 import type { I_NativeCollection } from "./Collection";
+import EventManager from "src/Core/_Events";
 
 export type HeapEvents<T> = {
     add: {
@@ -55,6 +56,10 @@ Iterable<T>
     get(): Iterable<T>
     {
         let self = this;
+
+        if (EventManager.global_listeners)
+            EventManager.global_listeners.push(this);
+
         return (function* iterator()
         {
             let item = self.items;
@@ -129,7 +134,7 @@ Iterable<T>
         if (this.subscribers)
         {
             this.queued = true;
-            Subscribable.register_async_emit(() => this.emit());
+            EventManager.register_async_emit(() => this.emit());
         }
 
         return super.dirty(source, ref);

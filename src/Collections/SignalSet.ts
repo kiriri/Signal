@@ -3,6 +3,7 @@ import { Computed } from "../Core/Computed";
 import { NativeSignal, ReadonlySignal } from "../Core/NativeSignal";
 import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 import type { I_NativeCollection } from "./Collection";
+import EventManager from "src/Core/_Events";
 
 export type SetEvents<T> = {
     add:{
@@ -34,8 +35,8 @@ export class SignalSet<T> extends Subscribable<Set<T>,SetEvents<T>> implements S
 
     get(): Set<T>
     {
-        if (Subscribable.global_listeners)
-            Subscribable.global_listeners.push(this);
+        if (EventManager.global_listeners)
+            EventManager.global_listeners.push(this);
 
         return this._internal;
     }
@@ -101,7 +102,7 @@ export class SignalSet<T> extends Subscribable<Set<T>,SetEvents<T>> implements S
         if (this.subscribers)
         {
             this.queued = true;
-            Subscribable.register_async_emit(() => this.emit());
+            EventManager.register_async_emit(() => this.emit());
         }
 
         return super.dirty(source,ref);

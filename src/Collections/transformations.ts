@@ -61,7 +61,7 @@ export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
         // this.eager = eager;
     }
 
-    register_collection(source: I_NativeCollection<INPUT>, mapped : boolean)
+    register_collection<MAPPED extends boolean>(source: I_NativeCollection<MAPPED extends true ? I_Subscribable<INPUT> : INPUT>, mapped : MAPPED)
     {
         const ref = source.subscribe_event(this.on_collection_change)
 

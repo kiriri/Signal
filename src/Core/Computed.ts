@@ -1,6 +1,7 @@
 // Computed signals will add a set to this when they get their value.
 // Any other signal whose value is used will automatically add itself to the last array.
 
+import EventManager from "./_Events";
 import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable";
 
 /**
@@ -64,7 +65,7 @@ export class Computed<T, CONTEXT=any> extends Subscribable<T> implements Statefu
         // recalculate and propagate when we can be sure that all dependencies updated.
         if (this.subscribers !== undefined || this._eager)
         {
-            Subscribable.register_async_emit(() => this.emit(this.get()))
+            EventManager.register_async_emit(() => this.emit(this.get()))
         }
 
         // return this;
@@ -74,9 +75,9 @@ export class Computed<T, CONTEXT=any> extends Subscribable<T> implements Statefu
     {
         // If this computed type is called inside of another computed type:
         // store the parent listener and replace it with its own for a bit.
-        if (Subscribable.global_listeners !== null)
+        if (EventManager.global_listeners !== null)
         {
-            Subscribable.global_listeners.push(this);
+            EventManager.global_listeners.push(this);
         }
 
         // if it's dirty, or if its in a transaction which delayed the dirty signal, recalculate the value
@@ -112,9 +113,9 @@ export class Computed<T, CONTEXT=any> extends Subscribable<T> implements Statefu
     {
         this._dirty = false;
 
-        let parent_listeners = Subscribable.global_listeners;
-        const global_listeners = Subscribable.global_listeners = <Subscribable<any>[]>[];
-        Subscribable.global_listeners = global_listeners;
+        let parent_listeners = EventManager.global_listeners;
+        const global_listeners = EventManager.global_listeners = <Subscribable<any>[]>[];
+        EventManager.global_listeners = global_listeners;
 
         let value = this.fn(this.context);
 
@@ -159,7 +160,7 @@ export class Computed<T, CONTEXT=any> extends Subscribable<T> implements Statefu
 
         // If this was called inside another computed signal, switch back to that ones listeners so it can continue on.
         // If it was not inside another listener, set listeners to undefined!
-        Subscribable.global_listeners = parent_listeners;
+        EventManager.global_listeners = parent_listeners;
 
         this._cache = value;
 

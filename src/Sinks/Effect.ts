@@ -1,4 +1,6 @@
-import { Dirtyable, I_Subscribable, LinkedList, Subscribable } from "../Core/Subscribable";
+import EventManager from "src/Core/_Events";
+import type { Dirtyable, I_Subscribable, LinkedList } from "../Core/Subscribable";
+import Subscribable from "../Core/Subscribable";
 
 type MappedSignals<Inputs extends Record<string, Subscribable<any>>> = {[K in keyof Inputs]: Inputs[K] extends Subscribable<infer U> ? U : Inputs[K] extends {get():infer U} ? U : never};
 
@@ -44,7 +46,7 @@ export class Effect<Inputs extends Record<string, Subscribable<any>>, T>
     
             this._dirty = true;
     
-            Subscribable.register_async_emit(async_caller);
+            EventManager.register_async_emit(async_caller);
         };
 
         for (let key in sources)

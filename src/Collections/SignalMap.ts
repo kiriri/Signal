@@ -2,6 +2,7 @@ import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 import { NativeSignal } from "../Core/NativeSignal";
 import { I_Subscribable, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 import { I_NativeCollection } from "./Collection";
+import EventManager from "src/Core/_Events";
 
 export type MapEvents<K,T> = {
     add:{
@@ -54,8 +55,8 @@ implements StatefulSubscribable<Map<K, V>>, I_NativeCollection<[K,V],MapEvents<K
         {
             return this._internal.get(key) as V;
         }
-        if (Subscribable.global_listeners)
-            Subscribable.global_listeners.push(this);
+        if (EventManager.global_listeners)
+            EventManager.global_listeners.push(this);
 
         return this._internal;
     }
@@ -186,7 +187,7 @@ implements StatefulSubscribable<Map<K, V>>, I_NativeCollection<[K,V],MapEvents<K
         if (this.subscribers)
         {
             this.queued = true;
-            Subscribable.register_async_emit(() => this.emit());
+            EventManager.register_async_emit(() => this.emit());
         }
 
         return super.dirty(source, ref);

@@ -1,10 +1,11 @@
-import { LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable";
+import type { LinkedList, StatefulSubscribable } from "./Subscribable";
+import Subscribable from "./Subscribable";
 /**
  * Represents a real Subscribable value that is stored in this Signal.
  */
 export declare class NativeSignal<T> extends Subscribable<T> implements StatefulSubscribable<T> {
     _value: T;
-    queued: boolean;
+    queued?: boolean;
     /**
      * Creates a new Signal with an initial value.
      * @param value - The initial value of the signal.

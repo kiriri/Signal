@@ -13,10 +13,7 @@ export declare class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT> {
     get(): OUTPUT;
     dirty(source: any, ref: any): void;
     constructor(identityValue: INPUT, merger: (value: INPUT, last_value: INPUT, result: OUTPUT, source: (I_GettableSubscribable<INPUT>) | I_NativeCollection<INPUT>, ref: ReducerRef<INPUT>, target: Reducer<INPUT, OUTPUT>) => OUTPUT, value: OUTPUT);
-    register_collection(source: I_NativeCollection<INPUT>, mapped: boolean): EventRef<{
-        event: string;
-        value: any;
-    }>;
+    register_collection<MAPPED extends boolean>(source: I_NativeCollection<MAPPED extends true ? I_Subscribable<INPUT> : INPUT>, mapped: MAPPED): any;
     on_collection_change(source: I_NativeCollection<INPUT>, event: {
         event: string;
         value?: any;

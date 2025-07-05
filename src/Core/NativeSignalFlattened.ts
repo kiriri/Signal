@@ -1,76 +1,93 @@
-import { Eventable } from "./Eventable";
-
-export type StatefulSubscribable<T> = I_Subscribable<T> & { get(): T };
-
-
-// This is a fake WeakRef. Using the real one results in bugs:
-// We want subscribers to disappear from the subscribers array when they are no longer used. But we don't want this subscribable,
-// which active subscribers listen to, to be removed. WeakRefs are weak in both directions! Therefore we need to store "Is listening to"
-// just to keep the source alive!
-class FakeWeakRef<T>
-{
-    constructor(public value: T)
-    {
-
-    }
-
-    deref()
-    {
-        return this.value;
-    }
-}
-
-/**
- * An object which can be marked as dirty.
- * This may imply that it lazily computes a value, like Compute,
- * or that it defers triggering a function like Effect.
- */
-export interface Dirtyable
-{
-    dirty(source: I_Subscribable<any>, ref?: LinkedList<any>, value?: any): void;
-    // _dirty:boolean;
-}
-
-export type LinkedList<T> = {
-    next?: LinkedList<T>;
-    prev?: LinkedList<T>;
-    value: T
-}
 
 
 
-export interface I_Subscribable<T>
-{
-    subscribe(
-        subscribable: Dirtyable
-    ): LinkedList<WeakRef<Dirtyable>>;
-    subscribe(
-        subscribable: (source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void
-    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>;
-    subscribe(
-        fn: ((source: I_Subscribable<T>, value: any, ref: LinkedList<any>) => any) | Dirtyable
-    ): LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void)>>;
-
-    unsubscribe(reference: LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void)>>): this;
-
-    dirty(source: I_Subscribable<any>, ref?: LinkedList<any>, value?: any);
-}
-
-export interface I_GettableSubscribable<T> extends I_Subscribable<T> 
-{
-    get():T
-}
-
-export type EventRef<Event> = LinkedList<WeakRef<(source: Subscribable<any, any>, event: Event, ref:EventRef<Event>) => any>> & {
-    event?:string
-}
 
 /**
- * Represents a subscribable value that can be observed for changes.
+ * Represents a real Subscribable value that is stored in this Signal. 
  */
-export class Subscribable<T, Events extends Record<string, { event: string, value: any }> = {}> implements I_Subscribable<T>, Eventable<Events>
+export class NativeSignalFlattened<T> implements StatefulSubscribable<T>
 {
-    // These functions want to be called when this Subscribable's value changes.
+    // The internal value. Only get it directly if you want to make sure no computed type subscribes to it.
+    _value: T;
+    queued?: boolean;
+
+    /**
+     * Creates a new Signal with an initial value.
+     * @param value - The initial value of the signal.
+     */
+    constructor(value: T)
+    {
+        this._value = value;
+    }
+
+    /**
+     * Gets the current value of the signal.
+     * If called inside another computed signal, it will add itself to the list of listeners.
+     * @returns The current value of the signal.
+     */
+    get(): T
+    {
+        if (EventManager.global_listeners)
+            EventManager.global_listeners.push(this);
+        return this._value;
+    }
+
+    /**
+     * Sets a new value for the signal and emits it to all subscribers.
+     * @param value - The new value to set.
+     */
+    set(value: T): void
+    {
+        if (value === this._value)
+            return;
+        this._value = value;
+        this.dirty(this, undefined, value);
+    }
+
+    update(fn: (v: T) => T)
+    {
+        // this.set(fn(this._value));
+        const value = fn(this._value);
+        if (value === this._value)
+            return;
+        this._value = value;
+        this.dirty(this, undefined, value)
+    }
+
+    dirty(source: this, ref?: LinkedList<T>, value?: T)
+    {
+        // If it's queued for emit(), 
+        // then it stands to reason that it has propagated dirty as well.
+        if (this.queued)
+            return this;
+
+        if (this.subscribers !== undefined)
+        {
+            this.queued = true;
+            EventManager.register_async_emit(this.on_emit, this);
+        }
+
+        this._dirty(source, ref);
+
+        return this;
+    }
+
+    on_emit(context: this)
+    {
+        context.queued = false;
+        context.emit(context._value);
+    }
+
+
+    
+
+
+
+
+
+
+
+     // These functions want to be called when this Subscribable's value changes.
     // We store them as WeakRefs so they get GCed when nobody uses the object anymore.
     subscribers: LinkedList<WeakRef<(
         source: I_Subscribable<T>,
@@ -86,7 +103,6 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
     >;
 
     any_events:EventRef<undefined> | undefined;
-    // events: Record< string, ((event:Events[keyof Events]) => any)[] > | undefined;
 
     /**
      * Subscribe to a named event, or to any named event if event parameter is left undefined.
@@ -274,7 +290,7 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
      * This is only used for stateful subscribables.
      * This should propagate all the way through all subscribables which depend on this.
      */
-    dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>)
+    _dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>)
     {
         let dependant = this.dependants;
         // Propagate dirty state to all dependent subscribables.
@@ -344,4 +360,84 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
     }
 }
 
-export default Subscribable;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// /**
+//  * Flattens class inheritance by copying all properties/methods from base to derived class.
+//  * This improves instance creation performance at the cost of slightly increased memory usage.
+//  * 
+//  * @param Derived - The class that will receive all properties/methods
+//  * @param Base - The class whose properties/methods will be copied
+//  * @returns The enhanced Derived class with flattened prototype chain
+//  */
+// function mergeClasses<T extends new (...args: any[]) => any, U extends new (...args: any[]) => any>(
+//     Derived: T,
+//     Base: U
+// ): T & {
+//     // Ensure TypeScript understands the merged type
+//     prototype: InstanceType<T> & InstanceType<U>
+// }
+// {
+//     // Get all properties from Base class (including inherited ones)
+//     const baseProps = new Set<string>();
+//     let current = Base.prototype;
+
+//     while (current && current !== Object.prototype)
+//     {
+//         Object.getOwnPropertyNames(current).forEach(prop =>
+//         {
+//             // Skip constructor and properties already in Derived
+//             if (prop !== 'constructor' && !Derived.prototype.hasOwnProperty(prop))
+//             {
+//                 baseProps.add(prop);
+//             }
+//         });
+//         current = Object.getPrototypeOf(current);
+//     }
+
+//     // Copy each property to Derived class
+//     baseProps.forEach(prop =>
+//     {
+//         const descriptor = Object.getOwnPropertyDescriptor(Base.prototype, prop) ||
+//             Object.getOwnPropertyDescriptor(Object.getPrototypeOf(Base.prototype), prop);
+
+//         if (descriptor)
+//         {
+//             Object.defineProperty(Derived.prototype, prop, descriptor);
+//         }
+//     });
+
+//     // Copy static properties if any exist
+//     Object.getOwnPropertyNames(Base).forEach(prop =>
+//     {
+//         if (prop !== 'prototype' && prop !== 'length' && prop !== 'name' && prop !== 'caller')
+//         {
+//             const descriptor = Object.getOwnPropertyDescriptor(Base, prop);
+//             if (descriptor && !Derived.hasOwnProperty(prop))
+//             {
+//                 Object.defineProperty(Derived, prop, descriptor);
+//             }
+//         }
+//     });
+
+//     return Derived as any;
+// }
+
+// export const MySignal = mergeClasses(NativeSignal, Subscribable);
+
+// new MySignal(1).

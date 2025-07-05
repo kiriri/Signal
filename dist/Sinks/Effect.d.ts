@@ -1,4 +1,5 @@
-import { I_Subscribable, LinkedList, Subscribable } from "../Core/Subscribable";
+import type { I_Subscribable, LinkedList } from "../Core/Subscribable";
+import Subscribable from "../Core/Subscribable";
 type MappedSignals<Inputs extends Record<string, Subscribable<any>>> = {
     [K in keyof Inputs]: Inputs[K] extends Subscribable<infer U> ? U : Inputs[K] extends {
         get(): infer U;

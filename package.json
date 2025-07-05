@@ -37,6 +37,7 @@
     "jsmin": "^1.0.1",
     "rollup": "^4.44.1",
     "rollup-plugin-terser": "^7.0.2",
+    "ts-morph": "^26.0.0",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "uglify-es": "^3.3.10"

@@ -1,16 +1,20 @@
 
 
-import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable";
+import { Flatten } from "src/_decorators/flatten";
+import EventManager from "./_Events";
+import type { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable } from "./Subscribable";
+
+import Subscribable from "./Subscribable";
 
 /**
  * Represents a real Subscribable value that is stored in this Signal. 
  */
+@Flatten()
 export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscribable<T>
 {
-
     // The internal value. Only get it directly if you want to make sure no computed type subscribes to it.
     _value: T;
-    queued: boolean = false;
+    queued?: boolean;
 
     /**
      * Creates a new Signal with an initial value.
@@ -29,8 +33,8 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
      */
     get(): T
     {
-        if (Subscribable.global_listeners)
-            Subscribable.global_listeners.push(this);
+        if (EventManager.global_listeners)
+            EventManager.global_listeners.push(this);
         return this._value;
     }
 
@@ -43,7 +47,7 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
         if (value === this._value)
             return;
         this._value = value;
-        this.dirty(this,undefined,value);
+        this.dirty(this, undefined, value);
     }
 
     update(fn: (v: T) => T)
@@ -53,28 +57,28 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
         if (value === this._value)
             return;
         this._value = value;
-        this.dirty(this,undefined,value)
+        this.dirty(this, undefined, value)
     }
 
-    override dirty(source: this, ref?: LinkedList<T>, value?:T)
+    override dirty(source: this, ref?: LinkedList<T>, value?: T)
     {
         // If it's queued for emit(), 
         // then it stands to reason that it has propagated dirty as well.
-        if(this.queued) 
+        if (this.queued)
             return this;
 
         if (this.subscribers !== undefined)
         {
             this.queued = true;
-            Subscribable.register_async_emit(this.on_emit, this);
+            EventManager.register_async_emit(this.on_emit, this);
         }
 
-        super.dirty(source,ref);
+        super.dirty(source, ref);
 
         return this;
     }
 
-    on_emit(context:this)
+    on_emit(context: this)
     {
         context.queued = false;
         context.emit(context._value);
@@ -88,4 +92,4 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
     // }
 }
 
-export type ReadonlySignal<T> = Omit<NativeSignal<T>,"set">;
+export type ReadonlySignal<T> = Omit<NativeSignal<T>, "set">;
