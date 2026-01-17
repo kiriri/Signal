@@ -2,6 +2,53 @@ import * as ts from 'typescript';
 import * as path from 'path';
 import * as fs from 'fs';
 
+/**
+ * Returns true if the class declaration has the @Flatten() decorator.
+ * @param node 
+ * @returns 
+ */
+function hasFlattenDecorator(node: ts.ClassDeclaration): boolean
+{
+    return !!ts.getDecorators(node)?.some(d =>
+        ts.isCallExpression(d.expression) &&
+        ts.isIdentifier(d.expression.expression) &&
+        d.expression.expression.text === 'Flatten'
+    );
+}
+
+/**
+ * Return the names of the methods that exist in both of the classes.
+ * @param derivedClass 
+ * @param baseClass 
+ * @returns 
+ */
+function findMethodConflicts(derivedClass: ts.ClassDeclaration, baseClass: ts.ClassDeclaration) : Set<string>
+{
+    const conflicts = new Set<string>();
+
+    const derivedMethods = new Set();
+    derivedClass.members.forEach(member =>
+    {
+        if (ts.isMethodDeclaration(member) && member.name && ts.isIdentifier(member.name))
+        {
+            derivedMethods.add(member.name.text);
+        }
+    });
+
+    baseClass.members.forEach(member =>
+    {
+        if (ts.isMethodDeclaration(member) && member.name && ts.isIdentifier(member.name))
+        {
+            const methodName = member.name.text;
+            if (derivedMethods.has(methodName))
+            {
+                conflicts.add(methodName);
+            }
+        }
+    });
+
+    return conflicts;
+}
 
 export function flattenClassesTransformer(program: ts.Program): ts.TransformerFactory<ts.SourceFile>
 {
@@ -34,36 +81,9 @@ export function flattenClassesTransformer(program: ts.Program): ts.TransformerFa
         };
 
 
-        function hasFlattenDecorator(node: ts.ClassDeclaration): boolean
-        {
-            return !!ts.getDecorators(node)?.some(d =>
-                ts.isCallExpression(d.expression) &&
-                ts.isIdentifier(d.expression.expression) &&
-                d.expression.expression.text === 'Flatten'
-            );
-        }
 
-        function findMethodConflicts(derivedClass, baseClass) {
-            const conflicts = new Set();
-            
-            const derivedMethods = new Set();
-            derivedClass.members.forEach(member => {
-                if (ts.isMethodDeclaration(member) && member.name && ts.isIdentifier(member.name)) {
-                    derivedMethods.add(member.name.text);
-                }
-            });
-        
-            baseClass.members.forEach(member => {
-                if (ts.isMethodDeclaration(member) && member.name && ts.isIdentifier(member.name)) {
-                    const methodName = member.name.text;
-                    if (derivedMethods.has(methodName)) {
-                        conflicts.add(methodName);
-                    }
-                }
-            });
-        
-            return conflicts;
-        }
+
+
 
         function createFlattenedConstructor(
             baseCtor?: ts.ConstructorDeclaration,
@@ -133,21 +153,13 @@ export function flattenClassesTransformer(program: ts.Program): ts.TransformerFa
             // Analyze conflicts
             const conflicts = findMethodConflicts(cls, baseClass);
 
-            // Find method name conflicts
-            const conflictMap = new Map<string, string>();
-            const derivedMethodNames = new Set(
-                cls.members
-                    .filter(ts.isMethodDeclaration)
-                    .map(m => m.name && ts.isIdentifier(m.name) ? m.name.text : '')
-                    .filter(Boolean)
-            );
-
             // Process base members
             const baseMembers = baseClass.members
                 .filter(m => !ts.isConstructorDeclaration(m))
                 .map(member =>
                 {
-                    if (ts.isConstructorDeclaration(member)) {
+                    if (ts.isConstructorDeclaration(member))
+                    {
                         // Skip base constructor - we'll handle it separately
                         return undefined!;
                     }
@@ -159,7 +171,7 @@ export function flattenClassesTransformer(program: ts.Program): ts.TransformerFa
                         let methodName = member.name.text;
 
                         if (conflicts.has(methodName)) 
-                            {
+                        {
                             // Rename conflicting base methods
                             methodName = `__base_${methodName}`;
                         }
@@ -189,7 +201,7 @@ export function flattenClassesTransformer(program: ts.Program): ts.TransformerFa
                                             false
                                         );
                                     }
-                                    
+
                                     return ts.visitEachChild(
                                         node,
                                         child => visit(child),
@@ -219,17 +231,19 @@ export function flattenClassesTransformer(program: ts.Program): ts.TransformerFa
                     return member;
                 }).filter(Boolean).filter(m => !ts.isConstructorDeclaration(m!));
 
-                const cls_members = cls.members.map(member => {
-                    if (ts.isMethodDeclaration(member)) 
-                    {
-                        const updatedMember = updateSuperCalls(member, conflicts);
-                        members.push(printer.printNode(ts.EmitHint.Unspecified, updatedMember, sourceFile));
-                    } 
-                    else if (ts.isConstructorDeclaration(member)) {
-                        return createFlattenedConstructor()
-                    } 
-                    return member;
-                });
+            const cls_members = cls.members.map(member =>
+            {
+                if (ts.isMethodDeclaration(member)) 
+                {
+                    const updatedMember = updateSuperCalls(member, conflicts);
+                    members.push(printer.printNode(ts.EmitHint.Unspecified, updatedMember, sourceFile));
+                }
+                else if (ts.isConstructorDeclaration(member))
+                {
+                    return createFlattenedConstructor()
+                }
+                return member;
+            });
 
             return ts.factory.updateClassDeclaration(
                 cls,
@@ -239,7 +253,7 @@ export function flattenClassesTransformer(program: ts.Program): ts.TransformerFa
                 cls.typeParameters,
                 undefined, // no heritage (extends)
                 [
-                    ...cls_members, 
+                    ...cls_members,
                     ...baseMembers,
                 ]
             );;

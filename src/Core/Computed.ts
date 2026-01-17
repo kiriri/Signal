@@ -1,12 +1,14 @@
 // Computed signals will add a set to this when they get their value.
 // Any other signal whose value is used will automatically add itself to the last array.
 
+import { Flatten } from "src/_decorators/flatten";
 import EventManager from "./_Events";
 import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable";
 
 /**
  * Represents a computed signal that dynamically computes its value based on other signals.
  */
+@Flatten()
 export class Computed<T, CONTEXT=any> extends Subscribable<T> implements StatefulSubscribable<T>, Dirtyable
 {
     // This computed signal is currently listening to any change in any of these subscribables.
@@ -144,13 +146,13 @@ export class Computed<T, CONTEXT=any> extends Subscribable<T> implements Statefu
             {
                 // we'll reuse
                 let existing = subscribed_to[i];
-                existing.ref = sub.subscribe(this);
+                existing.ref = sub.depend(this);
                 existing.signal = sub;
             }
             else
                 subscribed_to.push({
                     signal:sub,
-                    ref: sub.subscribe(this)
+                    ref: sub.depend(this)
                 });
         }
         

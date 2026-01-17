@@ -1,4 +1,3 @@
-import { Eventable } from "src/Core/Eventable";
 export type ReqColTypes<T> = {
     add: {
         event: "add";
@@ -13,6 +12,6 @@ export type ReqColTypes<T> = {
         value: any;
     };
 };
-export interface I_NativeCollection<T, Events extends ReqColTypes<T> = ReqColTypes<T>> extends Eventable<Events> {
+export interface I_NativeCollection<T, Events extends ReqColTypes<T> = ReqColTypes<T>> {
     get(): Iterable<T>;
 }

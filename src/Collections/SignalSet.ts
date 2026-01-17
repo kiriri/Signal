@@ -16,6 +16,7 @@ export type SetEvents<T> = {
     }
 };
 
+
 export class SignalSet<T> extends Subscribable<Set<T>,SetEvents<T>> implements StatefulSubscribable<Set<T>>, I_NativeCollection<T,SetEvents<T>>
 {
     readonly _internal: Set<T>;
@@ -119,3 +120,6 @@ export class SignalSet<T> extends Subscribable<Set<T>,SetEvents<T>> implements S
     }
 
 }
+
+
+// let test : StatefulSubscribable<Iterable<number>> = new SignalSet<number>()

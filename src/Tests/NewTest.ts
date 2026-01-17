@@ -404,7 +404,9 @@ tests.push(async function test3()
 
     assertSetSize(1, set1);
 
-    // allow gc to clean up everything inside
+    async function scope2()
+    {
+        // allow gc to clean up everything inside
     async function scope1()
     {
         let did_emit: { event: "add" | "delete"; value: NativeSignal<number>; }[] = [];
@@ -453,8 +455,11 @@ tests.push(async function test3()
         }
 
     }
-
     await scope1();
+    await wait(1);
+    }
+
+    await scope2();
 
     await assertGcCount(1);
 

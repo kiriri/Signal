@@ -31,6 +31,7 @@ class EventManager {
     }
 }
 
+// import { Eventable } from "./Eventable";
 // This is a fake WeakRef. Using the real one results in bugs:
 // We want subscribers to disappear from the subscribers array when they are no longer used. But we don't want this subscribable,
 // which active subscribers listen to, to be removed. WeakRefs are weak in both directions! Therefore we need to store "Is listening to"
@@ -58,8 +59,9 @@ class Subscribable {
         let previous_first_item = event === undefined ? this.any_events : (this.events ??= {})[event];
         const new_item = {
             next: previous_first_item,
-            value: new WeakRef(fn),
-            event
+            value: new WeakRef(fn), // needs to be held weakly, otherwise the next subscription references this 
+            // (it's a linked list afterall), which causes a mess of interdependencies.
+            event: event
         };
         if (previous_first_item === undefined) {
             if (event === undefined)
@@ -121,7 +123,15 @@ class Subscribable {
         }
         return this;
     }
+    // readonly uid = uid();
+    /**
+     * Subscribes a function to be called when the value of this Subscribable changes.
+     * @param fn - The function to subscribe.
+     * @param function_owns_signal - If true, this subscribable will not GC while the function is being held. If false, the function will not GC while the signal is held.
+     * @param subscribable If set, instantly sets the target subscribable to dirty when this subscribable emits.
+     */
     subscribe(fn) {
+        // Is Function ?
         if (typeof fn === "function") {
             const previous_first_item = this.subscribers;
             const new_item = this.subscribers = {
@@ -132,10 +142,13 @@ class Subscribable {
                 previous_first_item.prev = new_item;
             return new_item;
         }
+        // Is Dirtyable
+    }
+    depend(subscribable) {
         const previous_first_item = this.dependants;
         const new_item = this.dependants = {
             next: previous_first_item,
-            value: new WeakRef(fn)
+            value: new WeakRef(subscribable)
         };
         if (previous_first_item !== undefined)
             previous_first_item.prev = new_item;
@@ -224,7 +237,7 @@ class Subscribable {
 /**
  * Represents a computed signal that dynamically computes its value based on other signals.
  */
-class Computed extends Subscribable {
+class Computed {
     // This computed signal is currently listening to any change in any of these subscribables.
     // These subscribables are bound up in fn, so we don't have to worry about weakly referencing them here either.
     subscribed_to = [];
@@ -234,25 +247,6 @@ class Computed extends Subscribable {
     _dirty = true;
     _cache;
     _eager;
-    /**
-     * Creates a new Computed signal with a function that computes its value.
-     * @param fn - The function that computes the value of the computed signal.
-     * @param [eager=false] If true, acts like a sink/effect, as in it does not wait to run the function until get() is called. Default false.
-     */
-    constructor(fn, context, eager = false) {
-        super();
-        this.fn = fn;
-        this.context = context;
-        this._eager = eager;
-        // Instantly run the function to subscribe to the relevant dependencies.
-        if (eager) {
-            this._cache = this._get();
-        }
-        // don't subscribe unless someone shows interest by calling get() or subscribe()
-        else {
-            this._dirty = "first";
-        }
-    }
     /**
      * Only propagates dirty state when its not already propagated
      * ( ie no dependent signal has bothered to get this computed since )
@@ -265,7 +259,7 @@ class Computed extends Subscribable {
             return;
         this._dirty = true;
         // Propagate the dirty state.
-        super.dirty(source, ref);
+        this.__base_dirty(source, ref);
         // recalculate and propagate when we can be sure that all dependencies updated.
         if (this.subscribers !== undefined || this._eager) {
             EventManager.register_async_emit(() => this.emit(this.get()));
@@ -288,7 +282,7 @@ class Computed extends Subscribable {
         if (this._dirty === "first") {
             this._get(); // initialize subscribers 
         }
-        return super.subscribe(arguments[0]);
+        return this.__base_subscribe(arguments[0]);
     }
     /**
      * Computes the current value of the computed signal and subscribes to any signals it depends on.
@@ -317,13 +311,13 @@ class Computed extends Subscribable {
             if (i < l1) {
                 // we'll reuse
                 let existing = subscribed_to[i];
-                existing.ref = sub.subscribe(this);
+                existing.ref = sub.depend(this);
                 existing.signal = sub;
             }
             else
                 subscribed_to.push({
                     signal: sub,
-                    ref: sub.subscribe(this)
+                    ref: sub.depend(this)
                 });
         }
         // Shrink the array if the number of subscribed to signals decreased.
@@ -346,6 +340,144 @@ class Computed extends Subscribable {
             sub[0].unsubscribe(sub[1].ref);
         }
         this.subscribed_to.length = 0;
+    }
+    subscribers;
+    dependants;
+    events;
+    any_events;
+    subscribe_event(fn, event) { let previous_first_item = event === undefined ? this.any_events : (this.events ??= {})[event]; const new_item = {
+        next: previous_first_item, value: new WeakRef(fn), event: event
+    }; if (previous_first_item === undefined) {
+        if (event === undefined)
+            this.any_events =
+                new_item;
+        else
+            this.events[event] =
+                new_item;
+    } if (previous_first_item
+        /**
+         * Computes the current value of the computed signal and subscribes to any signals it depends on.
+         * @returns The current value of the computed signal.
+         */
+        !== /**
+         * Computes the current value of the computed signal and subscribes to any signals it depends on.
+         * @returns The current value of the computed signal.
+         */
+            undefined)
+        previous_first_item.prev = new_item; return new_item; }
+    unsubscribe_event(reference) { let event_name = reference["event"]; if (reference.next !== undefined)
+        reference.next.prev = reference
+            .
+                prev; if (reference.prev !== undefined // subscribing and unsubscribing is *really* optimized, making it faster
+    // than any Set/Map difference we could possibly come up with here.
+    // And yes, just unsubscribing and resubscribing again and again looks 0 IQ,
+    // but I tested this quite thoroughly.
+    )
+        // than any Set/Map difference we could possibly come up with here.
+        // And yes, just unsubscribing and resubscribing again and again looks 0 IQ,
+        // but I tested this quite thoroughly.
+        reference.prev.next = reference.next;
+    else {
+        if (event_name === undefined)
+            if (this.any_events === // And yes, just unsubscribing and resubscribing again and again looks 0 IQ,
+                // but I tested this quite thoroughly.
+                reference)
+                this.any_events = reference.next;
+            else if (this.events?.[event_name] === reference)
+                this
+                    .
+                        events[event_name] = reference.next;
+    } return this; }
+    can_emit(// Avoid push if the array is already sufficiently sized
+    event) { return (this.any_events ??
+        this.events?.[event.event]) !== undefined // we'll reuse
+    ; // we'll reuse
+     }
+    emit_event(event) { let events = this.events?.[event.event]; while (events !== undefined) {
+        const deref = events.value.deref();
+        if (deref === undefined)
+            this.unsubscribe_event(events);
+        else
+            deref(
+            // Shrink the array if the number of subscribed to signals decreased.
+            this
+            // Shrink the array if the number of subscribed to signals decreased.
+            // Shrink the array if the number of subscribed to signals decreased.
+            , // Shrink the array if the number of subscribed to signals decreased.
+            event, events);
+        events = events.next;
+    } let events2 = this.any_events; while (events2 !== undefined // If this was called inside another computed signal, switch back to that ones listeners so it can continue on.
+    // If it was not inside another listener, set listeners to undefined!
+    ) 
+    // If it was not inside another listener, set listeners to undefined!
+    {
+        const deref = events2.value.deref();
+        if (deref === undefined)
+            this // If it was not inside another listener, set listeners to undefined!
+                .
+                    unsubscribe_event(events2);
+        else
+            deref(this, event, events2);
+        events2 = events2.
+            next;
+    } return 
+     }
+    __base_subscribe(fn) { if (typeof fn === "function") {
+        const previous_first_item = this.subscribers;
+        const new_item = this.subscribers = {
+            next: previous_first_item, value: new WeakRef(fn)
+        };
+        if (previous_first_item !== undefined)
+            previous_first_item.prev = new_item;
+        return new_item;
+    } }
+    depend(subscribable) { const previous_first_item = this.dependants; const new_item = this.dependants = {
+        next: previous_first_item, value: new WeakRef(subscribable)
+    }; if (previous_first_item !== undefined)
+        previous_first_item.prev = new_item; return new_item; }
+    unsubscribe(reference) { if (reference.next !== undefined)
+        reference.next.prev = reference.prev; if (reference.prev !== undefined)
+        reference.prev.next = reference.next;
+    else {
+        if (this.dependants === reference)
+            this.dependants = this.dependants.next;
+        else if (this.subscribers === reference)
+            this.subscribers = this.subscribers.next;
+    } return this; }
+    __base_dirty(source, ref) { let dependant = this.dependants; while (dependant !== undefined) {
+        const deref = dependant.value.deref();
+        if (deref === undefined)
+            this.unsubscribe(dependant);
+        else
+            deref.dirty(this, dependant);
+        dependant = dependant.next;
+    } }
+    emit(value) { let subscriber = this.subscribers; while (subscriber !== undefined) {
+        const deref = subscriber.value.deref();
+        if (deref === undefined)
+            this.unsubscribe(subscriber);
+        else
+            deref(this, value, subscriber);
+        subscriber = subscriber.next;
+    } return this; }
+    promise() { let resolve; let reference; const subscriber = (source, v) => {
+        this.unsubscribe(reference);
+        resolve(v);
+    }; reference = this.subscribe(subscriber); return new Promise((_resolve) => {
+        resolve = _resolve;
+    }); }
+    constructor(fn, context, eager = false) {
+        this.fn = fn;
+        this.context = context;
+        this._eager = eager;
+        // Instantly run the function to subscribe to the relevant dependencies.
+        if (eager) {
+            this._cache = this._get();
+        }
+        // don't subscribe unless someone shows interest by calling get() or subscribe()
+        else {
+            this._dirty = "first";
+        }
     }
 }
 
@@ -405,7 +537,7 @@ class NativeSignal {
     events;
     any_events;
     subscribe_event(fn, event) { let previous_first_item = event === undefined ? this.any_events : (this.events ??= {})[event]; const new_item = {
-        next: previous_first_item, value: new WeakRef(fn), event
+        next: previous_first_item, value: new WeakRef(fn), event: event
     }; if (previous_first_item === undefined) {
         if (event === undefined)
             this.any_events = new_item;
@@ -447,8 +579,9 @@ class NativeSignal {
         if (previous_first_item !== undefined)
             previous_first_item.prev = new_item;
         return new_item;
-    } const previous_first_item = this.dependants; const new_item = this.dependants = {
-        next: previous_first_item, value: new WeakRef(fn)
+    } }
+    depend(subscribable) { const previous_first_item = this.dependants; const new_item = this.dependants = {
+        next: previous_first_item, value: new WeakRef(subscribable)
     }; if (previous_first_item !== undefined)
         previous_first_item.prev = new_item; return new_item; }
     unsubscribe(reference) { if (reference.next !== undefined)
@@ -849,6 +982,7 @@ class SignalSet extends Subscribable {
         return this._internal.has(value);
     }
 }
+// let test : StatefulSubscribable<Iterable<number>> = new SignalSet<number>()
 
 class SignalHeap extends Subscribable {
     items;
@@ -970,6 +1104,7 @@ class Reducer extends Subscribable {
         const reducer = ref["reducer"];
         const map = ref["map"];
         const mapped = map !== undefined;
+        console.log("Collection changed");
         if (mapped) {
             switch (event.event) {
                 case "add":
@@ -1001,10 +1136,12 @@ class Reducer extends Subscribable {
         // BUG : Except this wil stop Reducer from being GCed while its sources still exist. So we have to add a WeakRef. Which is somewhat expensive. But we can reuse it at least.
         ref["reducer"] = this._self ??= new WeakRef(this);
         ref["source"] = source;
+        this.on_change(source, source.get?.(), ref);
         return ref;
     }
     unregister_source(ref) {
         ref.source.unsubscribe(ref);
+        this.on_change(ref["source"], this.identityValue, ref);
     }
     // dirty(source: I_Subscribable<INPUT>, ref:LinkedList<INPUT>, value?:INPUT): void
     // {
@@ -1525,6 +1662,214 @@ function Interval(delta) {
     return signal;
 }
 
+const bin_log_length = 8;
+const bin_log_length_log = 3;
+const bin_length = 1 << bin_log_length;
+const bin_mask = bin_length - 1;
+const bin_log_lengths = [0, bin_log_length, bin_log_length * 2, bin_log_length * 3, bin_log_length * 4];
+function FixedArray(length) {
+    // let result = {};
+    // for(let i = 0; i < length; i++)
+    // {
+    //     result[i] = undefined;
+    // }
+    // return result as any as T[];
+    // let arr = [];
+    // for(let i = 0; i < length; i++)
+    //     arr.push(undefined);
+    // return arr;
+    return new Array(length).fill(undefined);
+    // return [
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    //     undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,
+    // ]
+}
+/**
+ * For performance reasons, all actions will be assigned to buckets relative to how far in the future they are.
+ * So everything in bins_0 will be done in the next {bin_length} ticks. And every tick will get the bin in bins_0[tick % bin_length].
+ * When enough ticks pass, a higher order bin will be merged into the lower order bin corresponding to the delta time left for all actions in that bin.
+ * It's hard to explain. Sorry. Just remember that the time in a single array in a higher order bin fills the entire bin in the
+ * next lower level bin. Eg the single array bins_1[20] will when the time comes split into bins_0[0] all the
+ * way to bins_0[bin_length], populating all arrays in bins_0. Same for all the higher order bins.
+ */
+/**
+ * A quantized queue lets you register an event at a given time.
+ * You can occasionally advance the time and events will emit
+ * when they are due.
+ */
+class QuantizedQueue {
+    bins_0 = FixedArray(bin_length); // The next {bin_length} ticks have individual action bins
+    bins_1 = FixedArray(bin_length); // Each array in here contains the combined values of the next {1<<bin_length} buckets. Meaning this bin contains the next {bin_length^2} buckets total, over {bin_length} individual bins.
+    bins_2 = FixedArray(bin_length); // same drill, but {bin_length} larger than the previous bin.
+    bins_3 = FixedArray(bin_length); // same drill
+    bins_4 = FixedArray(bin_length); // same drill. Everything further in the future will have to reschedule every 1<<40 ticks. (TODO)
+    bins = [this.bins_0, this.bins_1, this.bins_2, this.bins_3, this.bins_4];
+    current_tick = 0;
+    tick() {
+        // TODO : Process bins
+        const tick = this.current_tick;
+        const bin_index = tick & bin_mask;
+        let entry = this.bins_0[bin_index];
+        while (entry !== undefined) {
+            entry.value(entry);
+            entry = entry.next;
+        }
+        this.bins_0[bin_index] = undefined;
+        this.current_tick += 1;
+        this.rebin();
+    }
+    tick_long(ticks) {
+        let bin = this.bins_0;
+        function _tick_long_process(relative_from, relative_to) {
+            for (let i = relative_from; i <= relative_to; i++) {
+                let _bin = bin[i];
+                while (_bin !== undefined) {
+                    _bin.value(_bin);
+                    _bin = _bin.next;
+                }
+                bin[i] = undefined;
+            }
+        }
+        let current_relative_tick = this.current_tick & bin_mask;
+        if (current_relative_tick !== 0) {
+            _tick_long_process(current_relative_tick, bin_length - 1);
+            this.current_tick += bin_length - current_relative_tick;
+            this.rebin();
+            ticks -= bin_length - current_relative_tick;
+        }
+        const full_bins = ~~(ticks / bin_length);
+        for (let i = 0; i < full_bins; i++) {
+            _tick_long_process(0, bin_length - 1);
+            this.current_tick += bin_length;
+            this.rebin();
+        }
+        ticks -= bin_length * full_bins;
+        if (ticks > 0) {
+            _tick_long_process(0, ticks);
+            this.current_tick += ticks;
+            this.rebin();
+        }
+    }
+    rebin(bin_index = 0) {
+        // const _bin_length = 1 << (bin_log_length + bin_index);
+        let lower_bin_index = (this.current_tick >> (bin_log_length * bin_index)) & bin_mask;
+        // If the current tick is not neatly divisible by the bin's size, no rebin is in order  
+        if (lower_bin_index)
+            return false;
+        let higher_bin_index = (this.current_tick >> (bin_log_length * (bin_index + 1))) & bin_mask;
+        // Try rebinning the next higher level too
+        this.rebin(bin_index + 1);
+        // Now merge the current higher order bin into the bins below it
+        const lower_level_bins = this.bins[bin_index];
+        let higher_level_entry = this.bins[bin_index + 1][higher_bin_index];
+        while (higher_level_entry !== undefined) {
+            let next_entry = higher_level_entry.next;
+            const lower_bin_index = (higher_level_entry.end_time >> (bin_log_length * bin_index)) & bin_mask;
+            const lower_bin = lower_level_bins[lower_bin_index];
+            higher_level_entry.next = lower_bin;
+            higher_level_entry.prev = undefined;
+            if (lower_bin !== undefined) {
+                lower_bin.prev = higher_level_entry;
+            }
+            lower_level_bins[lower_bin_index] = higher_level_entry;
+            higher_level_entry = next_entry;
+        }
+        this.bins[bin_index + 1][higher_bin_index] = undefined;
+        return true;
+    }
+    add(value, end_time) {
+        const action = {
+            value,
+            end_time,
+            prev: undefined,
+            next: undefined
+        };
+        const current_tick = this.current_tick;
+        if (end_time <= current_tick) {
+            // Run instantly
+            value(action);
+            return action;
+        }
+        // const log_time = Math.log2(delta);
+        const delta = end_time - current_tick;
+        // Some microoptimized log2 calculations ( Because function calls are expensive, even builtin ones like Math.log2 )
+        let log_delta = 0;
+        let _delta = delta;
+        while (_delta >>= 1)
+            log_delta++;
+        const bin_index = (log_delta >> bin_log_length_log); // divide by 8 because that's the bucket's log
+        const bin = this.bins[bin_index];
+        const bucket_index = (action.end_time >> bin_log_lengths[bin_index]) & bin_mask;
+        let bucket_entry = bin[bucket_index];
+        bin[bucket_index] = action;
+        if (bucket_entry !== undefined) {
+            bucket_entry.prev = action;
+            action.next = bucket_entry;
+        }
+        return action;
+    }
+    remove(action) {
+        if (action.prev === undefined) {
+            // find the correct bin; Because this action has no previous item, it should be first in that bin.
+            // We will need to replace it with the next one in line.
+            // const log_time = Math.log2(delta);
+            const delta = action.end_time - this.current_tick;
+            // Some microoptimized log2 calculations ( Because function calls are expensive, even builtin ones like Math.log2 )
+            // TODO : Check if this is still the case 5 years later!
+            let log_delta = 0;
+            let _delta = delta;
+            while (_delta >>= 1)
+                log_delta++;
+            const bucket = (log_delta >> bin_log_length_log); // divide by 8 because that's the bucket's log
+            const bucket_index = (action.end_time >> bin_log_lengths[bucket]) & bin_mask;
+            let bucket_entry = this.bins[bucket][bucket_index];
+            if (bucket_entry !== action) {
+                console.warn("Tried to remove an action which was not registered in the queue.");
+                return;
+            }
+            this.bins[bucket][bucket_index] = action.next;
+        }
+        else {
+            if (action.prev !== undefined)
+                action.prev.next = action.next;
+            if (action.next !== undefined)
+                action.next.prev = action.prev;
+        }
+    }
+}
+// export const queue = new ActionQueue();
+// export const queue_first = new ActionQueue();
+
 const EMPTY = {};
 /**
  * Represents a subscribable value that can be observed for changes.
@@ -1668,5 +2013,5 @@ function local(key, signal) {
     return signal;
 }
 
-export { BufferedSubscribable, Computed, Effect, Interval, NativeSignal, Order, OrderNode, Reducer, SignalHeap, SignalMap, SignalSet, Subscribable, count, count_fast, local, reduce, reduce_fast, reduce_generic };
+export { BufferedSubscribable, Computed, Effect, FixedArray, Interval, NativeSignal, Order, OrderNode, QuantizedQueue, Reducer, SignalHeap, SignalMap, SignalSet, Subscribable, count, count_fast, local, reduce, reduce_fast, reduce_generic };
 //# sourceMappingURL=index.js.map

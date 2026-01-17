@@ -1,4 +1,3 @@
-import { Eventable } from "./Eventable";
 export type StatefulSubscribable<T> = I_Subscribable<T> & {
     get(): T;
 };
@@ -16,9 +15,8 @@ export type LinkedList<T> = {
     value: T;
 };
 export interface I_Subscribable<T> {
-    subscribe(subscribable: Dirtyable): LinkedList<WeakRef<Dirtyable>>;
+    depend(subscribable: Dirtyable): LinkedList<WeakRef<Dirtyable>>;
     subscribe(subscribable: (source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>;
-    subscribe(fn: ((source: I_Subscribable<T>, value: any, ref: LinkedList<any>) => any) | Dirtyable): LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void)>>;
     unsubscribe(reference: LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void)>>): this;
     dirty(source: I_Subscribable<any>, ref?: LinkedList<any>, value?: any): any;
 }
@@ -34,7 +32,7 @@ export type EventRef<Event> = LinkedList<WeakRef<(source: Subscribable<any, any>
 export declare class Subscribable<T, Events extends Record<string, {
     event: string;
     value: any;
-}> = {}> implements I_Subscribable<T>, Eventable<Events> {
+}> = {}> implements I_Subscribable<T> {
     subscribers: LinkedList<WeakRef<(source: I_Subscribable<T>, value: any, ref: LinkedList<any>) => any>> | undefined;
     dependants: LinkedList<WeakRef<Dirtyable>> | undefined;
     events: Record<string, EventRef<Events[keyof Events]> | undefined>;
@@ -46,7 +44,7 @@ export declare class Subscribable<T, Events extends Record<string, {
      * @param event
      * @returns
      */
-    subscribe_event<K extends keyof Event>(fn: (source: Subscribable<any, any>, event: Events[K], ref: EventRef<any>) => any, event?: K): EventRef<Events[K]>;
+    subscribe_event<K extends keyof Events>(fn: (source: Subscribable<any, any>, event: Events[K], ref: EventRef<any>) => any, event?: K): EventRef<Events[K]>;
     /**
  * Force unsubscribe. This is generally not recommended, as garbage collection
  * does the same thing automatically.
@@ -59,16 +57,16 @@ export declare class Subscribable<T, Events extends Record<string, {
      * @param event
      * @returns
      */
-    can_emit<K extends keyof Event>(event: Events[K]): boolean;
-    emit_event<K extends keyof Event>(event: Events[K]): this;
+    can_emit<K extends keyof Events>(event: Events[K]): boolean;
+    emit_event<K extends keyof Events>(event: Events[K]): this;
     /**
      * Subscribes a function to be called when the value of this Subscribable changes.
      * @param fn - The function to subscribe.
      * @param function_owns_signal - If true, this subscribable will not GC while the function is being held. If false, the function will not GC while the signal is held.
      * @param subscribable If set, instantly sets the target subscribable to dirty when this subscribable emits.
      */
-    subscribe(subscribable: Dirtyable): LinkedList<WeakRef<Dirtyable>>;
-    subscribe(subscribable: (source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>;
+    subscribe(fn: (source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>;
+    depend(subscribable: Dirtyable): LinkedList<WeakRef<Dirtyable>>;
     /**
      * Force unsubscribe. This is generally not recommended, as garbage collection
      * does the same thing automatically.

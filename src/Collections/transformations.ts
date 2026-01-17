@@ -97,6 +97,8 @@ export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
         const map = ref["map"] as Map<any,any> | undefined;
         const mapped = map !== undefined;
 
+        console.log("Collection changed")
+
         if(mapped)
         {
             switch(event.event)
@@ -155,6 +157,8 @@ export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
         ref["reducer"] = this._self ??= new WeakRef(this);
         ref["source"] = source;
 
+        this.on_change(source,source.get?.(),ref);
+
         return ref;
     }
 
@@ -163,6 +167,7 @@ export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
     unregister_source(ref: ReturnType<this["register_source"]>)
     {
         ref.source.unsubscribe(ref);
+        this.on_change(ref["source"],this.identityValue,ref);
     }
 
     // dirty(source: I_Subscribable<INPUT>, ref:LinkedList<INPUT>, value?:INPUT): void
