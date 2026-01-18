@@ -21,7 +21,8 @@ export declare class Effect<Inputs extends Record<string, Subscribable<any>>, T>
      * Creates a new Computed signal with a function that computes its value.
      * @param fn - The function that computes the value of the computed signal.
      */
-    constructor(sources: Inputs, fn: (v: MappedSignals<Inputs>, self: any) => T, context?: any);
+    constructor(sources: Inputs, fn: (v: MappedSignals<Inputs>, self: any) => T);
+    update_key_function: (signal: any, value: any, ref: any) => void;
     initialize(): void;
     /**
      * Instantly removes all event listener references.

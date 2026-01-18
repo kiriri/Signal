@@ -208,27 +208,18 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
         fn: (source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void
     ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>
     {
-
-
         // Is Function ?
-        if (typeof fn === "function")
-        {
-            const previous_first_item = this.subscribers;
+        const previous_first_item = this.subscribers;
 
-            const new_item: LinkedList<WeakRef<typeof fn>> = this.subscribers = {
-                next: previous_first_item,
-                value: new WeakRef(fn)
-            }
-
-            if (previous_first_item !== undefined)
-                previous_first_item.prev = new_item;
-
-            return new_item;
+        const new_item: LinkedList<WeakRef<typeof fn>> = this.subscribers = {
+            next: previous_first_item,
+            value: new WeakRef(fn)
         }
 
-        // Is Dirtyable
+        if (previous_first_item !== undefined)
+            previous_first_item.prev = new_item;
 
-
+        return new_item;
     }
 
     depend(
@@ -306,7 +297,10 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
         {
             const deref = subscriber.value.deref();
             if (deref === undefined)
+            {
+                console.log("Deref undefined ", subscriber);
                 this.unsubscribe(subscriber)
+            }
             else
                 deref(this as any, value, subscriber)
 

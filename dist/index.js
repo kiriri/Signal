@@ -9,25 +9,24 @@ class EventManager {
     static waiting_to_emit = [];
     // To avoid updating say an effect every time its dependency changes while the same function
     // is processing, it will register its callback with an async delay, 
-    // which in reality should wait until whatever sync function is running is done.
+    // which in reality should wait only until whatever sync function is running is done.
     // This means the effect only triggers once after all dependencies were set, instead of once
     // for each dependency that changed.
+    // The effect is responsible for making sure it doesn't register itself again before the previous
+    // registration has been processed.
     static register_async_emit(fn, context) {
-        if (this.waiting_to_emit.length <= 0) {
-            const a = () => {
-                const emits = this.waiting_to_emit;
-                this.waiting_to_emit = [];
-                for (let f of emits) {
-                    f(context);
-                }
-            };
-            // setImmediate is faster but only works reliably in node
-            if (IS_NODE)
-                setImmediate(a);
-            else // firefox breaks terribly if setImmediate is used.
-                setTimeout(a, 0);
+        // if (this.waiting_to_emit.length <= 0)
+        // {
+        function a() {
+            fn(context);
         }
-        this.waiting_to_emit.push(fn);
+        // setImmediate is faster but only works reliably in node
+        if (IS_NODE)
+            setImmediate(a);
+        else // firefox breaks terribly if setImmediate is used.
+            setTimeout(a, 0);
+        // }
+        // this.waiting_to_emit.push(fn);
     }
 }
 
@@ -132,17 +131,14 @@ class Subscribable {
      */
     subscribe(fn) {
         // Is Function ?
-        if (typeof fn === "function") {
-            const previous_first_item = this.subscribers;
-            const new_item = this.subscribers = {
-                next: previous_first_item,
-                value: new WeakRef(fn)
-            };
-            if (previous_first_item !== undefined)
-                previous_first_item.prev = new_item;
-            return new_item;
-        }
-        // Is Dirtyable
+        const previous_first_item = this.subscribers;
+        const new_item = this.subscribers = {
+            next: previous_first_item,
+            value: new WeakRef(fn)
+        };
+        if (previous_first_item !== undefined)
+            previous_first_item.prev = new_item;
+        return new_item;
     }
     depend(subscribable) {
         const previous_first_item = this.dependants;
@@ -199,8 +195,10 @@ class Subscribable {
         // Propagate dirty state to all dependent subscribables.
         while (subscriber !== undefined) {
             const deref = subscriber.value.deref();
-            if (deref === undefined)
+            if (deref === undefined) {
+                console.log("Deref undefined ", subscriber);
                 this.unsubscribe(subscriber);
+            }
             else
                 deref(this, value, subscriber);
             subscriber = subscriber.next;
@@ -422,15 +420,10 @@ class Computed {
             next;
     } return 
      }
-    __base_subscribe(fn) { if (typeof fn === "function") {
-        const previous_first_item = this.subscribers;
-        const new_item = this.subscribers = {
-            next: previous_first_item, value: new WeakRef(fn)
-        };
-        if (previous_first_item !== undefined)
-            previous_first_item.prev = new_item;
-        return new_item;
-    } }
+    __base_subscribe(fn) { const previous_first_item = this.subscribers; const new_item = this.subscribers = {
+        next: previous_first_item, value: new WeakRef(fn)
+    }; if (previous_first_item !== undefined)
+        previous_first_item.prev = new_item; return new_item; }
     depend(subscribable) { const previous_first_item = this.dependants; const new_item = this.dependants = {
         next: previous_first_item, value: new WeakRef(subscribable)
     }; if (previous_first_item !== undefined)
@@ -454,8 +447,10 @@ class Computed {
     } }
     emit(value) { let subscriber = this.subscribers; while (subscriber !== undefined) {
         const deref = subscriber.value.deref();
-        if (deref === undefined)
+        if (deref === undefined) {
+            console.log("Deref undefined ", subscriber);
             this.unsubscribe(subscriber);
+        }
         else
             deref(this, value, subscriber);
         subscriber = subscriber.next;
@@ -571,15 +566,10 @@ class NativeSignal {
             deref(this, event, events2);
         events2 = events2.next;
     } return this; }
-    subscribe(fn) { if (typeof fn === "function") {
-        const previous_first_item = this.subscribers;
-        const new_item = this.subscribers = {
-            next: previous_first_item, value: new WeakRef(fn)
-        };
-        if (previous_first_item !== undefined)
-            previous_first_item.prev = new_item;
-        return new_item;
-    } }
+    subscribe(fn) { const previous_first_item = this.subscribers; const new_item = this.subscribers = {
+        next: previous_first_item, value: new WeakRef(fn)
+    }; if (previous_first_item !== undefined)
+        previous_first_item.prev = new_item; return new_item; }
     depend(subscribable) { const previous_first_item = this.dependants; const new_item = this.dependants = {
         next: previous_first_item, value: new WeakRef(subscribable)
     }; if (previous_first_item !== undefined)
@@ -603,8 +593,10 @@ class NativeSignal {
     } }
     emit(value) { let subscriber = this.subscribers; while (subscriber !== undefined) {
         const deref = subscriber.value.deref();
-        if (deref === undefined)
+        if (deref === undefined) {
+            console.log("Deref undefined ", subscriber);
             this.unsubscribe(subscriber);
+        }
         else
             deref(this, value, subscriber);
         subscriber = subscriber.next;
@@ -1933,6 +1925,12 @@ class BufferedSubscribable {
     }
 }
 
+function async_caller(self) {
+    self._dirty = false;
+    if (self._initialized === false)
+        self.initialize();
+    self.fn(self._source_cache, self);
+}
 /**
  * An effect may reference any number of subscribables in its function, but it will only run whenever one of its sources changes.
  */
@@ -1950,29 +1948,23 @@ class Effect {
      */
     constructor(sources, 
     // The function that is called to compute the current value of this Subscribable.
-    fn, context) {
+    fn) {
         this.sources = sources;
         this.fn = fn;
-        const async_caller = () => {
-            this._dirty = false;
-            if (this._initialized === false)
-                this.initialize();
-            this.fn(this._source_cache, context);
-        };
-        let update_key_function = (signal, value, ref) => {
-            // @ts-ignore
-            this._source_cache[ref.key] = value;
-            if (this._dirty)
-                return;
-            this._dirty = true;
-            EventManager.register_async_emit(async_caller);
-        };
         for (let key in sources) {
-            let ref = this._updaters[key] = sources[key].subscribe(update_key_function);
+            let ref = this._updaters[key] = sources[key].subscribe(this.update_key_function);
             // @ts-ignore
             ref.key = key;
         }
     }
+    update_key_function = (signal, value, ref) => {
+        // @ts-ignore
+        this._source_cache[ref.key] = value;
+        if (this._dirty)
+            return;
+        this._dirty = true;
+        EventManager.register_async_emit(async_caller, this);
+    };
     initialize() {
         const sources = this.sources;
         for (let key in sources) {

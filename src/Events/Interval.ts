@@ -12,7 +12,7 @@ const registry = new FinalizationRegistry((intervalId: NodeJS.Timeout) =>
 // Get an event which fires every delta ms. 
 // Events are shared and reused if they have common delta.
 // That means events don't fire instantly.
-// Events get GCed when they are no longer used.
+// Events get GCed when they are no longer held.
 export function Interval(delta: number) : NativeSignal<number>
 {
     if (!intervals.has(delta))

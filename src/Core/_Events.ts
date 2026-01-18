@@ -16,28 +16,25 @@ export default class EventManager
 
     // To avoid updating say an effect every time its dependency changes while the same function
     // is processing, it will register its callback with an async delay, 
-    // which in reality should wait until whatever sync function is running is done.
+    // which in reality should wait only until whatever sync function is running is done.
     // This means the effect only triggers once after all dependencies were set, instead of once
     // for each dependency that changed.
+    // The effect is responsible for making sure it doesn't register itself again before the previous
+    // registration has been processed.
     static register_async_emit(fn: Function, context?: any)
     {
-        if (this.waiting_to_emit.length <= 0)
-        {
-            const a = () =>
+        // if (this.waiting_to_emit.length <= 0)
+        // {
+            function a()
             {
-                const emits = this.waiting_to_emit;
-                this.waiting_to_emit = [];
-                for (let f of emits)
-                {
-                    f(context);
-                }
+                fn(context);
             }
             // setImmediate is faster but only works reliably in node
             if (IS_NODE)
                 setImmediate(a);
             else // firefox breaks terribly if setImmediate is used.
                 setTimeout(a, 0);
-        }
-        this.waiting_to_emit.push(fn);
+        // }
+        // this.waiting_to_emit.push(fn);
     }
 }
