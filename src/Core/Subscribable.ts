@@ -54,6 +54,26 @@ export interface I_Subscribable<T>
     dirty(source: I_Subscribable<any>, ref?: LinkedList<any>, value?: any);
 }
 
+export interface I_Eventable<Events extends Record<string, { event: string, value: any }>>
+{
+     subscribe_event<K extends keyof Events>(
+        fn: (
+            source: Subscribable<any, any>,
+            event: Events[K],
+            ref: EventRef<any>
+        ) => any,
+        event?: K
+    );
+
+    unsubscribe_event(reference: EventRef<any>);
+
+    can_emit<K extends keyof Events>(event: Events[K]);
+
+    emit_event<K extends keyof Events>(event: Events[K]);
+}
+
+
+
 export interface I_GettableSubscribable<T> extends I_Subscribable<T> 
 {
     get(): T
@@ -66,7 +86,7 @@ export type EventRef<Event> = LinkedList<WeakRef<(source: Subscribable<any, any>
 /**
  * Represents a subscribable value that can be observed for changes.
  */
-export class Subscribable<T, Events extends Record<string, { event: string, value: any }> = {}> implements I_Subscribable<T>//, Eventable<Events>
+export class Subscribable<T, Events extends Record<string, { event: string, value: any }> = {}> implements I_Subscribable<T>, I_Eventable<Events>
 {
     // These functions want to be called when this Subscribable's value changes.
     // We store them as WeakRefs so they get GCed when nobody uses the object anymore.
@@ -78,11 +98,12 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
 
     dependants: LinkedList<WeakRef<Dirtyable>> | undefined;
 
-    // event subscribers
+    // named event subscribers.
     events: Record<string,
         EventRef<Events[keyof Events]> | undefined
     >;
 
+    // these event subscribers get triggered for each and every event that is fired.
     any_events: EventRef<undefined> | undefined;
     // events: Record< string, ((event:Events[keyof Events]) => any)[] > | undefined;
 
@@ -205,7 +226,7 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
      * @param subscribable If set, instantly sets the target subscribable to dirty when this subscribable emits.
      */
     subscribe(
-        fn: (source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void
+        fn: (source: this, value: T, ref: LinkedList<any>) => any | void
     ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>
     {
         // Is Function ?

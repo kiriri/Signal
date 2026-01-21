@@ -18,12 +18,9 @@ export type HeapEvents<T> = {
     }
 };
 
-export class SignalHeap<T> extends Subscribable<
-    Iterable<T>,
-    HeapEvents<T>
-> implements StatefulSubscribable<
-Iterable<T>
->, I_NativeCollection<T, HeapEvents<any>>
+export class SignalHeap<T> 
+extends Subscribable<Iterable<T>,HeapEvents<T>> 
+implements StatefulSubscribable<Iterable<T>>, I_NativeCollection<T, HeapEvents<any>>
 {
     items: LinkedList<T> | undefined;
 
@@ -71,20 +68,20 @@ Iterable<T>
         })()
     }
 
-  
+
     add(value: T)
     {
         const prev = this.items;
 
-        const ref : LinkedList<T> = {
+        const ref: LinkedList<T> = {
             value: value,
             next: prev
         };
 
-        if(prev !== undefined)
+        if (prev !== undefined)
             prev.prev = ref;
 
-        const event = { event: "add", value, ref };
+        const event = { event: "add", value, ref } as const;
         this.emit_event(event)
         this.dirty();
 
@@ -104,9 +101,9 @@ Iterable<T>
                 this.items = this.items.next;
         }
 
-        this.emit_event({ event: "delete", value:value.value, ref:value })
+        this.emit_event({ event: "delete", value: value.value, ref: value })
         this.dirty();
-    
+
     }
 
     clear()
@@ -116,7 +113,7 @@ Iterable<T>
 
         while (values !== undefined)
         {
-            this.emit_event({ event: "delete", value:values.value, ref:values })
+            this.emit_event({ event: "delete", value: values.value, ref: values })
             values = values.next;
         }
 
@@ -140,7 +137,7 @@ Iterable<T>
         return super.dirty(source, ref);
     }
 
-    override emit(value  = this.get()): this
+    override emit(value = this.get()): this
     {
         return super.emit(value);
     }

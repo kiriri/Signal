@@ -53,7 +53,7 @@ export class SignalSet<T> extends Subscribable<Set<T>,SetEvents<T>> implements S
         
         if (!exists)
         {
-            const event = { event: "add", value };
+            const event = { event: "add", value } as const;
             // if(this.can_emit(event))
             // {
                 // Inlining this will save around 20% performance 

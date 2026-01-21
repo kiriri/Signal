@@ -43,8 +43,9 @@ class Subscribable {
     // We store them as WeakRefs so they get GCed when nobody uses the object anymore.
     subscribers;
     dependants;
-    // event subscribers
+    // named event subscribers.
     events;
+    // these event subscribers get triggered for each and every event that is fired.
     any_events;
     // events: Record< string, ((event:Events[keyof Events]) => any)[] > | undefined;
     /**
@@ -343,83 +344,74 @@ class Computed {
     dependants;
     events;
     any_events;
-    subscribe_event(fn, event) { let previous_first_item = event === undefined ? this.any_events : (this.events ??= {})[event]; const new_item = {
+    subscribe_event(fn, event) { let previous_first_item = event === undefined ? this.any_events
+        : (this.events ??= {})[event]; const new_item = {
         next: previous_first_item, value: new WeakRef(fn), event: event
     }; if (previous_first_item === undefined) {
         if (event === undefined)
-            this.any_events =
-                new_item;
+            this.any_events = new_item;
         else
-            this.events[event] =
-                new_item;
-    } if (previous_first_item
-        /**
-         * Computes the current value of the computed signal and subscribes to any signals it depends on.
-         * @returns The current value of the computed signal.
-         */
-        !== /**
-         * Computes the current value of the computed signal and subscribes to any signals it depends on.
-         * @returns The current value of the computed signal.
-         */
-            undefined)
-        previous_first_item.prev = new_item; return new_item; }
-    unsubscribe_event(reference) { let event_name = reference["event"]; if (reference.next !== undefined)
-        reference.next.prev = reference
-            .
-                prev; if (reference.prev !== undefined // subscribing and unsubscribing is *really* optimized, making it faster
-    // than any Set/Map difference we could possibly come up with here.
-    // And yes, just unsubscribing and resubscribing again and again looks 0 IQ,
-    // but I tested this quite thoroughly.
-    )
-        // than any Set/Map difference we could possibly come up with here.
+            this // subscribing and unsubscribing is *really* optimized, making it faster
+                // than any Set/Map difference we could possibly come up with here.
+                // And yes, just unsubscribing and resubscribing again and again looks 0 IQ,
+                // but I tested this quite thoroughly.
+                .
+                    // than any Set/Map difference we could possibly come up with here.
+                    // And yes, just unsubscribing and resubscribing again and again looks 0 IQ,
+                    // but I tested this quite thoroughly.
+                    events[event] = new_item;
+    } if (previous_first_item // than any Set/Map difference we could possibly come up with here.
         // And yes, just unsubscribing and resubscribing again and again looks 0 IQ,
         // but I tested this quite thoroughly.
+        !== // than any Set/Map difference we could possibly come up with here.
+            // And yes, just unsubscribing and resubscribing again and again looks 0 IQ,
+            // but I tested this quite thoroughly.
+            undefined)
+        previous_first_item.prev = new_item; return 
+ }
+    unsubscribe_event(reference) { let event_name = reference["event"]; if (reference.next !== undefined)
+        reference.next.prev = reference.prev; if (reference.prev !== undefined)
         reference.prev.next = reference.next;
     else {
-        if (event_name === undefined)
-            if (this.any_events === // And yes, just unsubscribing and resubscribing again and again looks 0 IQ,
-                // but I tested this quite thoroughly.
-                reference)
-                this.any_events = reference.next;
+        if (event_name === undefined // Avoid push if the array is already sufficiently sized
+        )
+            if (this.any_events === reference)
+                this.any_events
+                    = reference.next // we'll reuse
+                ; // we'll reuse
             else if (this.events?.[event_name] === reference)
-                this
-                    .
-                        events[event_name] = reference.next;
+                this.events[event_name] = reference.next;
     } return this; }
-    can_emit(// Avoid push if the array is already sufficiently sized
-    event) { return (this.any_events ??
-        this.events?.[event.event]) !== undefined // we'll reuse
-    ; // we'll reuse
-     }
-    emit_event(event) { let events = this.events?.[event.event]; while (events !== undefined) {
-        const deref = events.value.deref();
+    can_emit(event) { 
+    // If this was called inside another computed signal, switch back to that ones listeners so it can continue on.
+    // If it was not inside another listener, set listeners to undefined!
+    return (this.any_events ?? this.events?.[event.event]) !== undefined; }
+    emit_event(// If it was not inside another listener, set listeners to undefined!
+    event // If it was not inside another listener, set listeners to undefined!
+    ) { let events = this.events?.[event.event]; while (events !== undefined) {
+        const deref = events.value.deref // this.emit(this._cache)
+        ( // this.emit(this._cache)
+        ) // this.emit(this._cache)
+        ; // this.emit(this._cache)
         if (deref === undefined)
-            this.unsubscribe_event(events);
+            this.
+                /**
+                 * Stop any future update of this computed.
+                 * Call _get() to undo this.
+                 */
+                unsubscribe_event(events);
         else
-            deref(
-            // Shrink the array if the number of subscribed to signals decreased.
-            this
-            // Shrink the array if the number of subscribed to signals decreased.
-            // Shrink the array if the number of subscribed to signals decreased.
-            , // Shrink the array if the number of subscribed to signals decreased.
-            event, events);
+            deref(this, event, events);
         events = events.next;
-    } let events2 = this.any_events; while (events2 !== undefined // If this was called inside another computed signal, switch back to that ones listeners so it can continue on.
-    // If it was not inside another listener, set listeners to undefined!
-    ) 
-    // If it was not inside another listener, set listeners to undefined!
-    {
+    } let events2 = this.any_events; while (events2
+        !== undefined) {
         const deref = events2.value.deref();
         if (deref === undefined)
-            this // If it was not inside another listener, set listeners to undefined!
-                .
-                    unsubscribe_event(events2);
+            this.unsubscribe_event(events2);
         else
             deref(this, event, events2);
-        events2 = events2.
-            next;
-    } return 
-     }
+        events2 = events2.next;
+    } return this; }
     __base_subscribe(fn) { const previous_first_item = this.subscribers; const new_item = this.subscribers = {
         next: previous_first_item, value: new WeakRef(fn)
     }; if (previous_first_item !== undefined)
@@ -644,7 +636,7 @@ class OrderNode {
             value: this.value,
             node: this
         });
-        this.order.emit(this.order.nodes);
+        this.order.emit(this.order.first);
         return node;
     }
     insertBefore(value) {
@@ -655,7 +647,7 @@ class OrderNode {
             value: this.value,
             node: this
         });
-        this.order.emit(this.order.nodes);
+        this.order.emit(this.order.first);
         return node;
     }
     /**
@@ -678,7 +670,7 @@ class OrderNode {
             prevNext,
             prevPrev
         });
-        this.order.emit(this.order.nodes);
+        this.order.emit(this.order.first);
         return this;
     }
     /**
@@ -703,8 +695,15 @@ class OrderNode {
             value: this.value,
             node: this
         });
-        this.order.emit(this.order.nodes);
+        this.order.emit(this.order.first);
         this.order = null;
+    }
+    *[Symbol.iterator]() {
+        let node = this;
+        while (node) {
+            yield node.value;
+            node = node.next;
+        }
     }
 }
 class Order extends Subscribable {
@@ -738,7 +737,7 @@ class Order extends Subscribable {
             value: node.value,
             node
         });
-        this.emit(this.nodes);
+        this.emit(this.first);
         return node;
     }
     shift(value) {
@@ -750,7 +749,7 @@ class Order extends Subscribable {
             value: node.value,
             node
         });
-        this.emit(this.nodes);
+        this.emit(this.first);
         return node;
     }
     getNode(value) {
@@ -771,7 +770,7 @@ class Order extends Subscribable {
                 node
             });
         }
-        this.emit(this.nodes);
+        this.emit(this.first);
     }
     *[Symbol.iterator]() {
         let node = this.first;
@@ -1631,7 +1630,7 @@ const registry = new FinalizationRegistry((intervalId) => {
 // Get an event which fires every delta ms. 
 // Events are shared and reused if they have common delta.
 // That means events don't fire instantly.
-// Events get GCed when they are no longer used.
+// Events get GCed when they are no longer held.
 function Interval(delta) {
     if (!intervals.has(delta)) {
         let signal = new NativeSignal(0);

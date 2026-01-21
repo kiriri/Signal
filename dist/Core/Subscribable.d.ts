@@ -20,6 +20,15 @@ export interface I_Subscribable<T> {
     unsubscribe(reference: LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void)>>): this;
     dirty(source: I_Subscribable<any>, ref?: LinkedList<any>, value?: any): any;
 }
+export interface I_Eventable<Events extends Record<string, {
+    event: string;
+    value: any;
+}>> {
+    subscribe_event<K extends keyof Events>(fn: (source: Subscribable<any, any>, event: Events[K], ref: EventRef<any>) => any, event?: K): any;
+    unsubscribe_event(reference: EventRef<any>): any;
+    can_emit<K extends keyof Events>(event: Events[K]): any;
+    emit_event<K extends keyof Events>(event: Events[K]): any;
+}
 export interface I_GettableSubscribable<T> extends I_Subscribable<T> {
     get(): T;
 }
@@ -32,7 +41,7 @@ export type EventRef<Event> = LinkedList<WeakRef<(source: Subscribable<any, any>
 export declare class Subscribable<T, Events extends Record<string, {
     event: string;
     value: any;
-}> = {}> implements I_Subscribable<T> {
+}> = {}> implements I_Subscribable<T>, I_Eventable<Events> {
     subscribers: LinkedList<WeakRef<(source: I_Subscribable<T>, value: any, ref: LinkedList<any>) => any>> | undefined;
     dependants: LinkedList<WeakRef<Dirtyable>> | undefined;
     events: Record<string, EventRef<Events[keyof Events]> | undefined>;
@@ -65,7 +74,7 @@ export declare class Subscribable<T, Events extends Record<string, {
      * @param function_owns_signal - If true, this subscribable will not GC while the function is being held. If false, the function will not GC while the signal is held.
      * @param subscribable If set, instantly sets the target subscribable to dirty when this subscribable emits.
      */
-    subscribe(fn: (source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>;
+    subscribe(fn: (source: this, value: T, ref: LinkedList<any>) => any | void): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>;
     depend(subscribable: Dirtyable): LinkedList<WeakRef<Dirtyable>>;
     /**
      * Force unsubscribe. This is generally not recommended, as garbage collection

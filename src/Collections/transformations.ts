@@ -47,7 +47,9 @@ export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
 
     constructor(
         identityValue: INPUT,
-        merger: (value: INPUT, last_value: INPUT,
+        merger: (
+            value: INPUT, 
+            last_value: INPUT,
             result: OUTPUT,
             source: (I_GettableSubscribable<INPUT>) | I_NativeCollection<INPUT>, ref: ReducerRef<INPUT>, target: Reducer<INPUT, OUTPUT>) => OUTPUT,
         value: OUTPUT,

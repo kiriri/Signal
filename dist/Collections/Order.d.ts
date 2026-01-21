@@ -21,6 +21,7 @@ export declare class OrderNode<T> implements OrderNode<T> {
      * (There are no guardrails for performance reasons)
      */
     delete(): void;
+    [Symbol.iterator](): Generator<T, void, unknown>;
 }
 export type OrderEvents<T> = {
     add: {
@@ -40,7 +41,7 @@ export type OrderEvents<T> = {
         prevNext: OrderNode<T> | null;
     };
 };
-export declare class Order<T> extends Subscribable<Map<T, OrderNode<T>>, OrderEvents<T>> implements I_NativeCollection<T, OrderEvents<T>> {
+export declare class Order<T> extends Subscribable<Iterable<T>, OrderEvents<T>> implements I_NativeCollection<T, OrderEvents<T>> {
     nodes: Map<T, OrderNode<T>>;
     first: OrderNode<T>;
     last: OrderNode<T>;

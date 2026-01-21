@@ -51,7 +51,7 @@ export class OrderNode<T> implements OrderNode<T>
             node:this
         });
 
-        this.order.emit(this.order.nodes);
+        this.order.emit(this.order.first);
 
         return node;
     }
@@ -68,7 +68,7 @@ export class OrderNode<T> implements OrderNode<T>
             node:this
         });
 
-        this.order.emit(this.order.nodes);
+        this.order.emit(this.order.first);
 
         return node;
     }
@@ -98,7 +98,7 @@ export class OrderNode<T> implements OrderNode<T>
             prevNext,
             prevPrev
         });
-        this.order.emit(this.order.nodes);
+        this.order.emit(this.order.first);
 
         return this;
     }
@@ -130,8 +130,18 @@ export class OrderNode<T> implements OrderNode<T>
             node:this
         });
 
-        this.order.emit(this.order.nodes);
+        this.order.emit(this.order.first);
         this.order = null;
+    }
+
+    *[Symbol.iterator]()
+    {
+        let node = this as OrderNode<T>;
+        while(node)
+        {
+            yield node.value;
+            node = node.next;
+        }
     }
 
 }
@@ -157,7 +167,7 @@ export type OrderEvents<T> = {
 };
 
 
-export class Order<T> extends Subscribable<Map<T, OrderNode<T>>,OrderEvents<T>> implements I_NativeCollection<T, OrderEvents<T>>
+export class Order<T> extends Subscribable<Iterable<T>,OrderEvents<T>> implements I_NativeCollection<T, OrderEvents<T>>
 {
     nodes: Map<T,OrderNode<T>> = new Map();
     first: OrderNode<T> = null;
@@ -203,7 +213,7 @@ export class Order<T> extends Subscribable<Map<T, OrderNode<T>>,OrderEvents<T>> 
             node
         });
 
-        this.emit(this.nodes);
+        this.emit(this.first);
 
         return node;
     }
@@ -221,7 +231,7 @@ export class Order<T> extends Subscribable<Map<T, OrderNode<T>>,OrderEvents<T>> 
             node
         });
 
-        this.emit(this.nodes);
+        this.emit(this.first);
 
         return node;
     }
@@ -253,7 +263,7 @@ export class Order<T> extends Subscribable<Map<T, OrderNode<T>>,OrderEvents<T>> 
             });
         }
 
-        this.emit(this.nodes);
+        this.emit(this.first);
     }
 
     *[Symbol.iterator]()
