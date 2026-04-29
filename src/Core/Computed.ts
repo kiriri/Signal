@@ -1,34 +1,68 @@
-// Computed signals will add a set to this when they get their value.
-// Any other signal whose value is used will automatically add itself to the last array.
-
 import { Flatten } from "src/_decorators/flatten";
-import EventManager from "./_Events";
+import EventManager from "./_events";
 import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable";
 
 /**
- * Represents a computed signal that dynamically computes its value based on other signals.
+ * A signal whose value is *derived* from other signals via a user-provided function.
+ *
+ * **Auto-tracked dependencies.** When the function runs, every signal whose `get()` is
+ * called registers itself as a dependency. There is no manual dependency declaration —
+ * if your function reads `a.get() + b.get()`, the computed depends on `a` and `b`.
+ * Conditional reads work too: branches that don't run on a given evaluation simply
+ * aren't dependencies of that evaluation.
+ *
+ * **Lazy by default.** A non-eager `Computed` doesn't run its function until something
+ * shows interest (someone calls `get()` or `subscribe(...)`). Once it has run at least
+ * once, dependency invalidation will cause the cached value to be marked dirty; the
+ * next `get()` recomputes.
+ *
+ * **Eager mode.** Pass `eager = true` to act like a sink/effect: the function runs
+ * once at construction and re-runs whenever any dependency changes, regardless of
+ * whether anyone is reading the result. Use this when the side effect of computing
+ * is what you want, not the value.
+ *
+ * **GC behavior.** Like other subscribables, dependants are held weakly. If nothing
+ * references a Computed, it gets collected. Eager computeds keep themselves alive
+ * via their own dependency edges only as long as they are reachable.
  */
 @Flatten()
-export class Computed<T, CONTEXT=any> extends Subscribable<T> implements StatefulSubscribable<T>, Dirtyable
+export class Computed<T, CONTEXT = any> extends Subscribable<T> implements StatefulSubscribable<T>, Dirtyable
 {
-    // This computed signal is currently listening to any change in any of these subscribables.
-    // These subscribables are bound up in fn, so we don't have to worry about weakly referencing them here either.
-    subscribed_to: { signal: Subscribable<any>, ref: any}[] = [];
+    /**
+     * Currently-tracked dependencies, paired with the linked-list reference returned
+     * by `depend()`. We store them in an array (not a Set/Map) because the array is
+     * recycled across recomputations — this is significantly faster than recomputing
+     * a difference between old and new dependency sets each time. See `_get`.
+     */
+    subscribed_to: { signal: Subscribable<any>, ref: any }[] = [];
 
-    // The function that is called to compute the current value of this Subscribable.
-    readonly fn: (self:CONTEXT) => T;
-    readonly context:CONTEXT;
+    /** The user-provided function. The dependencies are captured by closure inside `fn`. */
+    readonly fn: (self: CONTEXT) => T;
 
-    _dirty: boolean | "first" = true;
-    _cache !: T;
-    _eager !: boolean;
+    /** Optional `this`-like context object passed to `fn` on each evaluation. */
+    readonly context: CONTEXT;
 
     /**
-     * Creates a new Computed signal with a function that computes its value.
-     * @param fn - The function that computes the value of the computed signal.
-     * @param [eager=false] If true, acts like a sink/effect, as in it does not wait to run the function until get() is called. Default false.
+     * Tri-state dirty flag:
+     *   - `"first"` — never run yet, will subscribe to dependencies on first `get`/`subscribe`.
+     *   - `true`    — known stale, recompute on next `get`.
+     *   - `false`   — `_cache` is current.
      */
-    constructor(fn: (self:CONTEXT) => T, context?:CONTEXT, eager = false)
+    _dirty: boolean | "first" = true;
+
+    /** Last computed value. Defined after the first evaluation. */
+    _cache!: T;
+
+    /** Whether this computed re-runs whenever a dependency changes (vs lazily on `get`). */
+    _eager!: boolean;
+
+    /**
+     * @param fn       The function that computes the value.
+     * @param context  Optional context object passed to `fn`.
+     * @param eager    If true, behaves like a sink: runs immediately and on every dep change.
+     *                 Default false (lazy: only runs when someone reads it).
+     */
+    constructor(fn: (self: CONTEXT) => T, context?: CONTEXT, eager = false)
     {
         super();
 
@@ -36,24 +70,24 @@ export class Computed<T, CONTEXT=any> extends Subscribable<T> implements Statefu
         this.context = context;
         this._eager = eager;
 
-        // Instantly run the function to subscribe to the relevant dependencies.
         if (eager)
         {
+            // Run immediately to wire up dependencies.
             this._cache = this._get();
         }
-        // don't subscribe unless someone shows interest by calling get() or subscribe()
         else
         {
+            // Don't subscribe until someone shows interest by calling get() or subscribe().
             this._dirty = "first";
         }
     }
 
     /**
-     * Only propagates dirty state when its not already propagated 
-     * ( ie no dependent signal has bothered to get this computed since )
-     * This is a performance saving measure.
-     * @param source 
-     * @returns 
+     * Mark this computed dirty and propagate through the dependency graph.
+     *
+     * The early return on `_dirty === true` is a perf measure: if we're already known
+     * stale, downstream dependants are already marked stale too — no need to walk the
+     * graph again.
      */
     override dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>)
     {
@@ -61,28 +95,31 @@ export class Computed<T, CONTEXT=any> extends Subscribable<T> implements Statefu
             return;
         this._dirty = true;
 
-        // Propagate the dirty state.
         super.dirty(source, ref);
 
-        // recalculate and propagate when we can be sure that all dependencies updated.
+        // Recalculate and propagate when we can be sure that all dependencies have
+        // updated for this tick. Eager computeds always do this; lazy ones only do it
+        // if someone is subscribed (otherwise nobody would receive the emission).
         if (this.subscribers !== undefined || this._eager)
         {
             EventManager.register_async_emit(() => this.emit(this.get()))
         }
-
-        // return this;
     };
 
+    /**
+     * Read the current value. If a parent `Computed` is currently evaluating, this
+     * computed registers itself as a dependency of the parent. If the cache is stale,
+     * the function is re-run.
+     */
     get()
     {
-        // If this computed type is called inside of another computed type:
-        // store the parent listener and replace it with its own for a bit.
+        // If this computed is being read inside another computed's evaluation:
+        // register ourselves with the enclosing tracker.
         if (EventManager.global_listeners !== null)
         {
             EventManager.global_listeners.push(this);
         }
 
-        // if it's dirty, or if its in a transaction which delayed the dirty signal, recalculate the value
         if (this._dirty)
             return this._get();
 
@@ -101,80 +138,81 @@ export class Computed<T, CONTEXT=any> extends Subscribable<T> implements Statefu
     {
         if (this._dirty === "first")
         {
-            this._get();  // initialize subscribers 
+            // First subscriber forces an initial evaluation so that the subscription
+            // is meaningful (we now know what to listen to).
+            this._get();
         }
 
         return super.subscribe(arguments[0]);
     }
 
     /**
-     * Computes the current value of the computed signal and subscribes to any signals it depends on.
-     * @returns The current value of the computed signal.
+     * Internal: re-evaluate the function, refresh the dependency set, and cache the
+     * result.
+     *
+     * **The dependency-set refresh is deliberately written in a peculiar way.** It
+     * unsubscribes from every previous dependency, then resubscribes to every current
+     * one — even ones that didn't change. You might expect a Set/Map difference to be
+     * faster, but in practice this loop is so much cheaper per iteration that it wins
+     * for typical computed sizes (small N). Don't "optimize" it without benchmarking.
      */
     _get()
     {
         this._dirty = false;
 
+        // Stash the parent tracker (if any) so nested computeds work correctly.
         let parent_listeners = EventManager.global_listeners;
         const global_listeners = EventManager.global_listeners = <Subscribable<any>[]>[];
         EventManager.global_listeners = global_listeners;
 
         let value = this.fn(this.context);
 
-        // subscribing and unsubscribing is *really* optimized, making it faster
-        // than any Set/Map difference we could possibly come up with here.
-        // And yes, just unsubscribing and resubscribing again and again looks 0 IQ,
-        // but I tested this quite thoroughly.
-
         let subscribed_to = this.subscribed_to;
-        
-        const l1 = subscribed_to.length;
-        for(let i = 0; i < l1; i++)
-        {
-            let {ref, signal} = subscribed_to[i];
 
+        // Drop all previous dependency subscriptions.
+        const l1 = subscribed_to.length;
+        for (let i = 0; i < l1; i++)
+        {
+            let { ref, signal } = subscribed_to[i];
             signal.unsubscribe(ref);
         }
 
+        // Reuse the existing array slots where possible (avoid push() growing the array
+        // when N is stable across runs), append where not.
         const length = global_listeners.length;
         for (let i = 0; i < length; i++)
         {
             const sub = global_listeners[i];
 
-            // Avoid push if the array is already sufficiently sized
-            if(i < l1)
+            if (i < l1)
             {
-                // we'll reuse
                 let existing = subscribed_to[i];
                 existing.ref = sub.depend(this);
                 existing.signal = sub;
             }
             else
                 subscribed_to.push({
-                    signal:sub,
+                    signal: sub,
                     ref: sub.depend(this)
                 });
         }
-        
-        // Shrink the array if the number of subscribed to signals decreased.
-        if(length<l1)
+
+        // Shrink if we have fewer dependencies this time around.
+        if (length < l1)
             subscribed_to.length = length;
 
-        // If this was called inside another computed signal, switch back to that ones listeners so it can continue on.
-        // If it was not inside another listener, set listeners to undefined!
+        // Restore the parent tracker for any enclosing computed.
         EventManager.global_listeners = parent_listeners;
 
         this._cache = value;
-
-        // this.emit(this._cache)
-
 
         return value;
     }
 
     /**
-     * Stop any future update of this computed.
-     * Call _get() to undo this.
+     * Stop listening to dependencies and prevent future re-evaluation. Call `_get()`
+     * to undo this. Use when you know a Computed is no longer needed and want to
+     * free its dependency edges immediately rather than waiting for GC.
      */
     destroy()
     {

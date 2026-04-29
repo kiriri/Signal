@@ -1,56 +1,74 @@
-import { Dirtyable, Subscribable, I_Subscribable } from "../Core/Subscribable";
+import { Subscribable, I_Subscribable } from "../Core/Subscribable";
+import EventManager from "../Core/_events";
 
 const EMPTY = {} as any;
 
 /**
- * Represents a subscribable value that can be observed for changes.
- * Eg an output can be wrapped inside a buffered subscribable to always 
- * store the last emitted value, even though outputs themselves are not
- * stateful.
- * That is why when used in a transaction, BufferedSubscribable
- * will emit the history of all changes during the 
- * transaction right after.
+ * A subscribable that batches values from its source.
+ *
+ * **Use case.** Some subscribables emit per individual change (a stateless output, a
+ * collection's add/delete events). If you want to react to "what happened during a
+ * tick" instead of being woken for each individual change, attach a
+ * `BufferedSubscribable`: it accumulates values into an array and emits the array
+ * once on the next microtask.
+ *
+ * **Transactional behavior.** When the source emits many times during a synchronous
+ * block, the buffer collects every value, and a single emission delivers the whole
+ * array. This makes it useful for replaying the history of a transaction.
+ *
+ * **Implementation note.** Internally delegates to a private `Subscribable<T[]>` proxy
+ * for subscribe/unsubscribe/dirty so that the public surface is `I_Subscribable<T[]>`.
  */
 export class BufferedSubscribable<T> implements I_Subscribable<T[]>
 {
-    // Dirty in this case just means that it has registered the deferred emit function.
+    /** True between "got a value" and "emitted the buffer". Prevents duplicate microtasks. */
     _dirty = false;
+
+    /** Accumulated values waiting to be emitted on the next microtask. */
     protected buffer: T[] = [];
 
+    /**
+     * Inner Subscribable that handles the actual subscriber/emit machinery. We
+     * delegate rather than extend so that our public type is `I_Subscribable<T[]>`
+     * even though the values flowing in are individual `T`s.
+     */
     protected readonly proxy = new Subscribable<T[]>();
 
     /**
-     * Pipe all changes from the subscribable into this buffered subscribable.
-     * Returns an unsubscribe function.
-     * @param target 
-     * @returns 
+     * Pipe all values from the given subscribable into this buffer. Returns an
+     * unsubscribe function that, when invoked, detaches the source.
      */
-    attach(target:Subscribable<T>)
+    attach(target: Subscribable<T>)
     {
         const ref = target.subscribe(this.on_target_change);
 
-        return ()=>target.unsubscribe(ref);
+        return () => target.unsubscribe(ref);
     }
 
-    on_target_change = (source: Subscribable<T>, value: T) =>
+    /**
+     * Subscriber function used for both `attach` and direct `emit` calls. Held as
+     * an instance arrow so it has a stable identity (and so the `WeakRef` GC story
+     * survives — one strong reference per BufferedSubscribable, not per push).
+     */
+    on_target_change = (source: Subscribable<T> | undefined, value: T) =>
     {
         this.buffer.push(value);
 
-        if(this._dirty)
+        if (this._dirty)
             return;
 
         this._dirty = true;
 
-        Subscribable.register_async_emit(()=>{
-           this._dirty = false;
-    
+        EventManager.register_async_emit(() =>
+        {
+            this._dirty = false;
+
             const buffer = this.buffer;
             this.buffer = [];
-    
+
             this.proxy.emit(buffer);
         });
     }
-
 
 
     readonly subscribe = this.proxy.subscribe.bind(this.proxy);
@@ -58,19 +76,26 @@ export class BufferedSubscribable<T> implements I_Subscribable<T[]>
     readonly dirty = this.proxy.dirty.bind(this.proxy);
 
     /**
-     * Please note that Buffered Subscribables by design defers emissions.
-     * @param value 
+     * Push a value into the buffer manually.
+     *
+     * Note: like all BufferedSubscribable inputs, this does **not** emit synchronously.
+     * The value lands in the buffer and the buffered array is emitted on the next
+     * microtask.
      */
-    emit(value:T = EMPTY)
+    emit(value: T = EMPTY)
     {
-        this.on_target_change(undefined,value);
+        this.on_target_change(undefined, value);
     }
 
     /**
      * Returns the current buffer and resets it internally.
-     * Note that this conflicts with attached subscribables, which will
-     * not receive the full buffer anymore.
-     * @returns 
+     *
+     * **Conflict warning.** Calling `consume()` while subscribers are also attached
+     * means those subscribers will *not* see the values you consumed — you've already
+     * cleared the buffer. Pick one consumer pattern.
+     *
+     * Also performs Computed-style dependency tracking: if called inside a Computed,
+     * the Computed will subscribe to this buffer's emissions.
      */
     consume()
     {
@@ -78,10 +103,9 @@ export class BufferedSubscribable<T> implements I_Subscribable<T[]>
         this.buffer = [];
         this._dirty = false;
 
-        if(Subscribable.global_listeners)
-            Subscribable.global_listeners.push(this.proxy);
+        if (EventManager.global_listeners)
+            EventManager.global_listeners.push(this.proxy);
 
         return result;
     }
 }
-

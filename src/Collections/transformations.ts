@@ -1,81 +1,131 @@
 import { NativeSignal } from "../Core/NativeSignal";
-import { BufferedSubscribable } from "../Sinks/BufferedSubscribable";
 import { I_NativeCollection, ReqColTypes } from "./Collection";
 import { Computed } from "../Core/Computed";
 import { EventRef, I_GettableSubscribable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 
-// TODO : 
+// TODO :
 // - Replace listener function with dependency.
 // - Make get force all lazy loads.
 
+/**
+ * Subscription reference returned by `Reducer.register_source`. Augments a
+ * standard subscriber linked-list node with the last seen value, so the merger
+ * function can compute deltas without needing external state.
+ */
 export type ReducerRef<INPUT> = LinkedList<INPUT> & { last: INPUT };
 
+/**
+ * A streaming fold over one or more sources.
+ *
+ * **What it is.** A `Reducer` accumulates values from any number of subscribed
+ * sources by calling a user-provided `merger` function with the new value, the
+ * previous value seen for that source, and the current accumulator. Sources can
+ * be individual signals (`register_source`) or whole collections (`register_collection`).
+ *
+ * **Identity value.** When a source emits for the first time, `last_value` is the
+ * `identity_value` you provided. When a source is removed (deletion or unregistration),
+ * the merger is called once more with `value === identity_value` so the reducer can
+ * "subtract out" that source's contribution.
+ *
+ * **Why a class instead of a function.** Lifetime and source-set are observable —
+ * you can dynamically register and unregister sources, and the merger sees a stable
+ * reducer object via the `target` parameter.
+ */
 export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
 {
-    readonly identityValue: INPUT;
+    /** The "neutral" input value used when a source is being added or removed. */
+    readonly identity_value: INPUT;
+
+    /**
+     * The merger function. Called with the new value, the previous value seen for
+     * the same source, the current accumulator, the source itself, the subscription
+     * reference, and the reducer instance. Returns the new accumulator.
+     */
     readonly merger: (
-        value: INPUT, 
+        value: INPUT,
         last_value: INPUT,
         result: OUTPUT,
-        source: I_GettableSubscribable<INPUT> | I_NativeCollection<INPUT>, 
-        ref: ReducerRef<INPUT>, 
+        source: I_GettableSubscribable<INPUT> | I_NativeCollection<INPUT>,
+        ref: ReducerRef<INPUT>,
         target: this
     ) => OUTPUT;
 
-    _value:OUTPUT;
+    /** Current accumulator. */
+    _value: OUTPUT;
+
+    /** Reserved for a future lazy-evaluation path; not currently consulted on the hot path. */
     _dirty: boolean = true;
 
 
-    private set(value:OUTPUT)
+    /** Update the accumulator and propagate dirty downstream. */
+    private set(value: OUTPUT)
     {
         this._value = value;
         super.dirty(this);
     }
 
+    /** Get the current accumulator. */
     get()
     {
         return this._value;
     }
 
-    dirty(
-        source, 
-        ref
-    )
-    {
+    /**
+     * Override of `Subscribable.dirty` that intentionally does nothing.
+     *
+     * Reducers don't propagate dirty *upstream* — they only propagate downstream when
+     * `set` is called from inside a merger. Dirty events from sources are absorbed
+     * here and turned into merger calls instead.
+     */
+    dirty(source, ref) { }
 
-    }
-
+    /**
+     * @param identity_value The "empty" input — used when a source enters or leaves the reducer.
+     * @param merger         Folds new values into the accumulator (see class docs).
+     * @param value          The initial accumulator value.
+     */
     constructor(
-        identityValue: INPUT,
+        identity_value: INPUT,
         merger: (
-            value: INPUT, 
+            value: INPUT,
             last_value: INPUT,
             result: OUTPUT,
-            source: (I_GettableSubscribable<INPUT>) | I_NativeCollection<INPUT>, ref: ReducerRef<INPUT>, target: Reducer<INPUT, OUTPUT>) => OUTPUT,
+            source: (I_GettableSubscribable<INPUT>) | I_NativeCollection<INPUT>,
+            ref: ReducerRef<INPUT>,
+            target: Reducer<INPUT, OUTPUT>
+        ) => OUTPUT,
         value: OUTPUT,
-        // eager:boolean = false
     )
     {
         super();
-        this.identityValue = identityValue;
+        this.identity_value = identity_value;
         this.merger = merger;
         this._value = value;
-        // this.eager = eager;
     }
 
-    register_collection<MAPPED extends boolean>(source: I_NativeCollection<MAPPED extends true ? I_Subscribable<INPUT> : INPUT>, mapped : MAPPED)
+    /**
+     * Subscribe to a whole collection. Every existing item triggers a synthetic
+     * `add` event so the reducer's accumulator reflects them; subsequent collection
+     * events are routed through `on_collection_change`.
+     *
+     * @param mapped When true, each value in the collection is itself a Subscribable;
+     *               the reducer registers each as its own source. When false, the
+     *               value itself is folded directly.
+     */
+    register_collection<MAPPED extends boolean>(source: I_NativeCollection<MAPPED extends true ? I_Subscribable<INPUT> : INPUT>, mapped: MAPPED)
     {
         const ref = source.subscribe_event(this.on_collection_change)
 
         ref["reducer"] = this;
         ref["map"] = mapped ? new Map() : undefined;
 
-        for(let item of source.get())
+        // Seed: emit one synthetic "add" per existing item.
+        for (let item of source.get())
         {
             (this).on_collection_change(
                 source,
                 {
-                    event:"add",
+                    event: "add",
                     value: item
                 },
                 ref
@@ -85,57 +135,61 @@ export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
         return ref;
     }
 
-
+    /**
+     * Handler for collection events (`add`/`delete`). Branches on whether the
+     * collection holds Subscribables (mapped mode — register/unregister per item) or
+     * raw values (fold the value directly using the merger).
+     */
     on_collection_change(
-        source:  I_NativeCollection<INPUT>,
+        source: I_NativeCollection<INPUT>,
         event: {
             event: string;
             value?: any
         },
-        ref:EventRef<any>
+        ref: EventRef<any>
     )
     {
-        const reducer = ref["reducer"] as Reducer<INPUT,OUTPUT>;
-        const map = ref["map"] as Map<any,any> | undefined;
+        const reducer = ref["reducer"] as Reducer<INPUT, OUTPUT>;
+        const map = ref["map"] as Map<any, any> | undefined;
         const mapped = map !== undefined;
 
         console.log("Collection changed")
 
-        if(mapped)
+        if (mapped)
         {
-            switch(event.event)
+            switch (event.event)
             {
                 case "add":
-                    let ref = reducer.register_source(event.value)
-                    map.set(event.value, ref);
+                    let inner_ref = reducer.register_source(event.value)
+                    map.set(event.value, inner_ref);
                     break;
                 case "delete":
-                    if(map.delete(event.value))
+                    if (map.delete(event.value))
                         reducer.unregister_source(map.get(event.value));
                     break;
             }
         }
         else
         {
-            switch(event.event)
+            switch (event.event)
             {
                 case "add":
                     reducer.set(reducer.merger(
-                        event.value, 
-                        reducer.identityValue, 
-                        reducer._value, 
-                        source, 
-                        ref as any, 
+                        event.value,
+                        reducer.identity_value,
+                        reducer._value,
+                        source,
+                        ref as any,
                         reducer
                     ));
                     break;
                 case "delete":
                     reducer.set(reducer.merger(
-                        reducer.identityValue, 
-                        event.value, 
-                        reducer._value, 
-                        source, 
-                        ref as any, 
+                        reducer.identity_value,
+                        event.value,
+                        reducer._value,
+                        source,
+                        ref as any,
                         reducer
                     ));
                     break;
@@ -143,8 +197,24 @@ export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
         }
     }
 
+    /**
+     * Lazily-allocated `WeakRef` to `this`, stored on subscription refs so the
+     * shared `on_change` handler can recover its owning reducer without holding
+     * a strong reference (which would prevent reducer GC while sources still exist).
+     */
     _self: WeakRef<this>;
 
+    /**
+     * Subscribe to a single source signal. Returns a tagged subscription reference
+     * holding the reducer's identity_value as `last`, the source itself, and a
+     * weak ref to the reducer.
+     *
+     * Why we use one shared `on_change` function instead of per-source closures:
+     * a single shared function on the prototype is much cheaper than instantiating
+     * a bound closure per source. The trade-off is a `WeakRef` per reducer (reused
+     * across all sources), which is required because we can't hold the reducer
+     * strongly from the source side without breaking GC.
+     */
     register_source(source: I_Subscribable<INPUT> | NativeSignal<INPUT>)
     {
         const ref = source.subscribe(this.on_change) as LinkedList<WeakRef<(source: I_Subscribable<INPUT>, value: INPUT, ref: LinkedList<any>) => any | void>> & {
@@ -153,43 +223,38 @@ export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
             source: typeof source
         };
 
-        ref["last"] = this.identityValue;
-        // putting the reducer in the ref and using one global function is cheapter than instantiating a new on_change function for each Reducer.
-        // BUG : Except this wil stop Reducer from being GCed while its sources still exist. So we have to add a WeakRef. Which is somewhat expensive. But we can reuse it at least.
+        ref["last"] = this.identity_value;
         ref["reducer"] = this._self ??= new WeakRef(this);
         ref["source"] = source;
 
-        this.on_change(source,source.get?.(),ref);
+        this.on_change(source, source.get?.(), ref);
 
         return ref;
     }
 
-
-
+    /**
+     * Inverse of `register_source`. Unsubscribes from the source and folds an
+     * `identity_value` through the merger so the reducer "forgets" this source's
+     * contribution.
+     */
     unregister_source(ref: ReturnType<this["register_source"]>)
     {
         ref.source.unsubscribe(ref);
-        this.on_change(ref["source"],this.identityValue,ref);
+        this.on_change(ref["source"], this.identity_value, ref);
     }
 
-    // dirty(source: I_Subscribable<INPUT>, ref:LinkedList<INPUT>, value?:INPUT): void
-    // {
-    //     const real_ref = ref as (typeof ref) & {last:INPUT};
-
-
-    //     // eager for now
-    //     // this.merger(source,real_ref,this);
-    //     ref["last"] = source["get"]?.() ?? this.identityValue;
-
-    //     // How does this work
-    //     // Dirty does not actually contain the value most of the time.
-    //     // dirty does not get called in situation like Subscribable.emit()
-    // }
-
-    on_change(this:undefined, source: I_GettableSubscribable<INPUT>, value: INPUT, ref: ReducerRef<INPUT>)
+    /**
+     * Shared subscriber callback used by every registered source. Recovers the
+     * reducer via the `WeakRef` stored on `ref`, calls the merger, and updates the
+     * accumulator.
+     *
+     * Note the `this: undefined` parameter — this function is intentionally not
+     * called with a `this` context. The reducer instance is recovered from `ref`
+     * rather than being bound on `this`.
+     */
+    on_change(this: undefined, source: I_GettableSubscribable<INPUT>, value: INPUT, ref: ReducerRef<INPUT>)
     {
         let last_value = ref["last"] as INPUT;
-        // TODO : There's a tipping point where creating a bound on_change function outweighs the costs of deref(). But it's in the 100s of calls. See if counting + replacing listeners is worth it. We could add the bound function to ref and check for it in the unbound on_change function. Or unsubscribe + resubscribe (might be cheaper).
         let self: this = ref["reducer"].deref()!;
         self.set(self.merger(value, last_value, self._value, source, ref, self));
         ref["last"] = value;
@@ -199,35 +264,45 @@ export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
 
 
 /**
- * 
- * @param source 
- * @param identityValue 
- * @param opts 
- * @param merger Uses identityValue on delete! Applies relative changes based on previous and current value.
- * @param mapper Optionally map any added or updated value
- * @returns 
+ * Generic reduction over a collection with optional unwrapping of Subscribable items
+ * and optional lazy mode.
+ *
+ * @param source         The source collection.
+ * @param identity_value Neutral value used as the initial accumulator and on item removal.
+ * @param opts.merger        Called with `(source_item, output, value, prev_value)` to
+ *                           fold a value into the output. Uses identityValue on delete!
+ *                           Applies relative changes based on previous and current value.
+ * @param opts.mapper        Optional pre-transform on each added/updated value.
+ * @param opts.unpackSignals If true, treat each collection item as a Subscribable and
+ *                           fold its `.get()` value (re-folding when it changes).
+ * @param opts.lazy          If true, defer merger calls until `output.get()` is read,
+ *                           so multiple changes to the same source within a tick
+ *                           collapse into a single merger call.
+ * @param opts.dependencies  Extra signals; if any of them change, the entire reduction
+ *                           is invalidated and recomputed from scratch.
+ * @param opts.output        Optionally provide your own output Subscribable.
  */
 export function reduce_generic(
     source: I_NativeCollection<any, any>,
-    identityValue,
+    identity_value,
     opts: {
-        output?: StatefulSubscribable<typeof identityValue>,
+        output?: StatefulSubscribable<typeof identity_value>,
         unpackSignals?: boolean,
         lazy?: boolean,
         dependencies?: Subscribable<any>[],
-        merger: (sourceItem, output, value, prev_value) => void,
-        mapper?: (sourceItem) => any
+        merger: (source_item, output, value, prev_value) => void,
+        mapper?: (source_item) => any
     }
 )
 {
-    const output = opts.output ?? new NativeSignal(identityValue);
-    const unpackSignals = opts.unpackSignals ?? false;
+    const output = opts.output ?? new NativeSignal(identity_value);
+    const unpack_signals = opts.unpackSignals ?? false;
     const lazy = opts.lazy ?? false;
     const dependencies = opts.dependencies;
     const merger = opts.merger;
     const mapper = opts.mapper;
 
-    const cache = new Map<typeof identityValue, {
+    const cache = new Map<typeof identity_value, {
         prev: any, // last known value
         ref: LinkedList<any> // subscription reference (needed to unsubscribe from signals)
     }>();
@@ -244,17 +319,18 @@ export function reduce_generic(
             }
         }
 
-        output["dependency_handler"] = dependency_handler; // Bind it so it GCs alongside the result
+        // Bind it onto the output so it GCs alongside.
+        output["dependency_handler"] = dependency_handler;
 
         for (let dependency of dependencies)
             dependency.subscribe(dependency_handler);
     }
 
-    // Lazy Mode. Avoid duplicate mapper/merger calls for entries which change multiple times within the same async time slice.
-    // This is significantly faster if you make many changes at a time.
+    // Lazy mode: avoid duplicate mapper/merger calls for entries that change multiple
+    // times within the same async time slice. Significantly faster for batched changes.
     if (lazy)
     {
-        let dirty = new Map<typeof identityValue, typeof identityValue>();
+        let dirty = new Map<typeof identity_value, typeof identity_value>();
 
         function lazy_apply(source, value)
         {
@@ -272,28 +348,26 @@ export function reduce_generic(
             for (let kv of dirty_values)
             {
                 const key = kv[0];
-                if (unpackSignals)
+                if (unpack_signals)
                     kv[1] = kv[1].get();
                 const value = mapper ? mapper?.(kv[1]) : kv[1];
-                let cacheItem = cache.get(key);
-                let prevValue;
-                if (!cacheItem)
+                let cache_item = cache.get(key);
+                let prev_value;
+                if (!cache_item)
                 {
-                    if (unpackSignals)
+                    if (unpack_signals)
                     {
                         listen(key);
                     }
                 }
                 else
                 {
-                    prevValue = cacheItem.prev;
-                    cacheItem.prev = value;
+                    prev_value = cache_item.prev;
+                    cache_item.prev = value;
                 }
 
-                merger(key, output, value, prevValue);
+                merger(key, output, value, prev_value);
             }
-
-
         }
 
         const original_get = output.get.bind(output);
@@ -308,7 +382,7 @@ export function reduce_generic(
         function listen(signal: Subscribable<any>)
         {
             cache.set(signal, {
-                prev: identityValue,
+                prev: identity_value,
                 ref: signal.subscribe(lazy_apply)
             })
         }
@@ -334,13 +408,13 @@ export function reduce_generic(
                 switch (ve.event)
                 {
                     // TODO : lazy only listens when get() is called for the first time
-                    // it also only updates the value at that time, all changed entries at once. 
+                    // it also only updates the value at that time, all changed entries at once.
                     case "add":
                         lazy_apply(ve.value, ve.value)
                         break;
                     case "delete":
-                        lazy_apply(ve.value, unpackSignals ? { get() { return identityValue } } : identityValue);
-                        if (unpackSignals)
+                        lazy_apply(ve.value, unpack_signals ? { get() { return identity_value } } : identity_value);
+                        if (unpack_signals)
                         {
                             unlisten(ve["value"]);
                         }
@@ -353,29 +427,30 @@ export function reduce_generic(
             }
         });
     }
-    // Non Lazy Mode : As soon as a change occurs, mapper and merger get called. 
+    // Non-lazy mode: as soon as a change occurs, mapper and merger get called.
     else
     {
-
-        function apply_value(sourceItem, value, ref?: LinkedList<any>, unpack = unpackSignals)
+        function apply_value(source_item, value, ref?: LinkedList<any>, unpack = unpack_signals)
         {
             if (unpack)
             {
-                value = value?.get(); // can be undefined if the value was removed from the source collection and the change event triggered before the delete one did.
+                // Can be undefined if the value was removed from the source collection
+                // and the change event triggered before the delete one did.
+                value = value?.get();
             }
 
-            let state = cache.get(sourceItem);
-            let prev_value = state?.prev ?? identityValue;
+            let state = cache.get(source_item);
+            let prev_value = state?.prev ?? identity_value;
 
             if (state)
                 state.prev = value;
             else
             {
-                cache.set(sourceItem, { prev: value, ref: null! });
+                cache.set(source_item, { prev: value, ref: null! });
             }
 
 
-            merger(sourceItem, output, value, prev_value);
+            merger(source_item, output, value, prev_value);
         }
 
         for (let initial_value of source.get())
@@ -386,7 +461,7 @@ export function reduce_generic(
         function listen(signal: Subscribable<any>)
         {
             cache.set(signal, {
-                prev: identityValue,
+                prev: identity_value,
                 ref: signal.subscribe(apply_value)
             })
         }
@@ -405,30 +480,27 @@ export function reduce_generic(
             switch (ve.event)
             {
                 case "add":
-
                     apply_value(original_value, value);
-                    if (unpackSignals)
+                    if (unpack_signals)
                     {
                         listen(original_value);
                     }
                     break;
                 case "delete":
-                    if (unpackSignals)
+                    if (unpack_signals)
                     {
                         unlisten(original_value);
                     }
                     else
                     {
-                        apply_value(original_value, identityValue, undefined, false);
+                        apply_value(original_value, identity_value, undefined, false);
                     }
                     break;
                 case "update":
                     apply_value(original_value, value);
-                    if (unpackSignals)
+                    if (unpack_signals)
                     {
                         throw new Error("Unpack Signals w/ update events not implemented yet! How do we unsubscribe from the old signal then?")
-                        // unlisten(original_value);
-                        // listen(original_value);
                     }
                     break
                 default: break;
@@ -436,24 +508,25 @@ export function reduce_generic(
         });
     }
 
-
-
     return output;
 }
 
 
+// =============================================================================
+// REFERENCE / FUTURE WORK — alternative reducer designs preserved for reference.
+//
+// `reduceGeneric` (camelCase) was an earlier exploration of a heavily-typed,
+// const-generic reducer that depended on a `_on_change_instant` channel which
+// has since been merged into the main subscriber path. The skeleton is preserved
+// here in case the type-level design becomes useful again.
+// =============================================================================
 
-
-
-
-
-
-/**
- * It doesn't matter if we map changes to a single nativeSignal or a collection.
- * Just provide the output directly, and the way that changes are merged into it.
- * @param producer 
- * @param output 
- */
+// /**
+//  * It doesn't matter if we map changes to a single nativeSignal or a collection.
+//  * Just provide the output directly, and the way that changes are merged into it.
+//  * @param producer
+//  * @param output
+//  */
 // export function reduceGeneric<
 //     const Producer extends I_NativeCollection<any, any>,
 //     const Output extends Subscribable<any>,
@@ -479,108 +552,32 @@ export function reduce_generic(
 //     ) => void
 // ): Output
 // {
-
+//
 //     const lazy = opts.lazy ?? true;
 //     const unpackSignals = opts.unpackSignals ?? false;
 //     const computed = opts.computed ?? false;
 //     const dependencies = opts.dependencies;
 //     const use_dependencies = !!dependencies;
-
+//
 //     if (computed && (unpackSignals || use_dependencies))
 //     {
 //         throw new Error("Reduce should either use a computed function, or manual dependencies + unpackSignals. Don't combine opts.computed with dependencies/unpackSignals, it only degrades performance.")
 //     }
-
-
+//
 //     type InputValue = Output extends Subscribable<infer V> ? V : never;
 //     type OutputValue = typeof producer extends I_NativeCollection<infer V, any> ? (
 //         typeof opts["unpackSignals"] extends true ? (
 //             V extends I_Subscribable<infer V2> ? V2 : never
 //         ) : V
 //     ) : never;
-
+//
 //     const dirty_entries = new Map<InputValue, Parameters<typeof processor>[0]>();
 //     let fully_dirty = false;
-
-//     // function update_all()
-//     // {
-//     //     let new_value = initial_value;
-
-//     //     for (let value of producer.get())
-//     //         new_value = reducer({ event: "add", value }, new_value);
-
-//     //     result.set(new_value);
-//     //     fully_dirty = false;
-//     //     dirty_entries.clear();
-//     // }
-
-//     // result.get = () =>
-//     // {
-//     //     if (fully_dirty)
-//     //         reset_value();
-//     //     else
-//     //     {
-//     //         let new_value = result._value;
-//     //         for (let value of dirty_entries.values())
-//     //             new_value = reducer(value, new_value);
-//     //         result.set(new_value);
-//     //     }
-
-//     //     return result._value;
-//     // }
-
-//     // if (dependends_on.length > 0)
-//     // {
-//     //     const dependency_handler = {
-//     //         dirty: function (source?: I_Subscribable<any>)
-//     //         {
-//     //             fully_dirty = true;
-//     //             result.dirty();
-//     //         }
-//     //     }
-
-//     //     result["dependency_handler"] = dependency_handler; // Bind it so it GCs alongside the result
-
-//     //     for (let dependency of dependends_on)
-//     //         dependency.subscribe(dependency_handler);
-//     // }
-
-//     // const listeners = new Map<InputValue, Computed<OutputValue>>();
-
-//     // function listen(v: InputValue)
-//     // {
-
-//     //     let computed: Computed<OutputValue>;
-//     //     let state = {};
-//     //     computed = new Computed<OutputValue>(() =>
-//     //     {
-//     //         let prev_value = result._value;
-//     //         let new_value = reducer(v, prev_value, state);
-//     //         result.set(new_value);
-//     //         return new_value;
-//     //     }, true);
-
-//     //     listeners.set(v, computed);
-//     // }
-
-//     // function unlisten(v: InputValue)
-//     // {
-//     //     listeners.get(v).destroy();
-//     //     listeners.delete(v);
-//     // }
-
-//     // const values = [...producer.get()];
-//     // for (let i = 0; i < values.length; i++)
-//     //     listen(values[i]);
-
-
-
-
-
+//
 //     producer._on_change_instant.subscribe((_, ve) =>
 //     {
 //         let { event, value } = ve;
-
+//
 //         if (lazy)
 //         {
 //             if (dirty_entries.has(value))
@@ -593,14 +590,23 @@ export function reduce_generic(
 //             processor(ve)
 //         }
 //     });
-
+//
 //     return output;
 // }
 
-// Reduce can be done much more efficiently without Computed, 
-// but it won't work if the reduce function contains any signals.
-// This will completely recalculate the reduced value whenever any of the dependencies changes.
-// Otherwise it will partially update the value whenever something is added or removed.
+
+/**
+ * A specialized reducer that does not support inner Computed but is significantly
+ * faster than `reduce` / `reduce_generic` for the common case.
+ *
+ * Use this when:
+ *   - your reducer function does *not* read other signals (no inner Computeds)
+ *   - you have an explicit list of `depends_on` signals that, when any change,
+ *     mean the entire reduction must be recomputed from scratch.
+ *
+ * For the common case (no extra dependencies, no signal reads), it incrementally
+ * applies adds and deletes — much cheaper than the Computed-based path.
+ */
 export function reduce_fast<
     ConsValue,
     ProdValue,
@@ -616,11 +622,9 @@ export function reduce_fast<
         },
         prev_value: ConsValue
     ) => ConsValue,
-    dependends_on: StatefulSubscribable<any>[],
+    depends_on: StatefulSubscribable<any>[],
 ): NativeSignal<ConsValue>
 {
-    // type ProdValue = Producer extends I_NativeCollection<infer V, infer E> ? V : never;
-
     const result = new NativeSignal(initial_value);
 
     const dirty_entries = new Map<ProdValue, {
@@ -656,7 +660,7 @@ export function reduce_fast<
         return result._value;
     }
 
-    if (dependends_on.length > 0)
+    if (depends_on.length > 0)
     {
         const dependency_handler = {
             dirty: function (source: NativeSignal<ConsValue>, ref, value)
@@ -666,15 +670,16 @@ export function reduce_fast<
             }
         }
 
-        result["dependency_handler"] = dependency_handler; // Bind it so it GCs alongside the result
+        // Bind it so it GCs alongside the result.
+        result["dependency_handler"] = dependency_handler;
 
-        for (let dependency of dependends_on)
+        for (let dependency of depends_on)
             dependency.subscribe(dependency_handler);
     }
 
     producer.subscribe_event((_, ve) =>
     {
-        // fully dirty will calculate all entries from scratch the next time
+        // fully_dirty will calculate all entries from scratch the next time
         // the result's get() function is called.
         if (fully_dirty)
             return;
@@ -682,8 +687,8 @@ export function reduce_fast<
         if (!["add", "delete"].includes(ve.event))
             return;
 
-        // Either it has added and then deleted, or vice versa. 
-        // Either way, skip updating the value altogether
+        // Either it has added and then deleted, or vice versa.
+        // Either way, skip updating the value altogether.
         if (dirty_entries.has(ve["value"]))
             dirty_entries.delete(ve["value"]);
         else
@@ -696,12 +701,24 @@ export function reduce_fast<
     return result;
 }
 
+/**
+ * Convenience: count items by mapping each event to a number contribution.
+ *
+ * @param counter Maps each `add`/`delete` event to a number; the sum is the count.
+ */
 export function count_fast<V>(collection: I_NativeCollection<V, any>, counter: (event: { event: "add" | "delete" | "update", value: V }) => number, depends_on: StatefulSubscribable<any>[])
 {
     return reduce_fast(0, collection, (event, prev) => prev + counter(event as any), depends_on);
 }
 
 
+/**
+ * The general reduce: each item gets its own `Computed` so the reducer function can
+ * itself read other signals.
+ *
+ * Slower than `reduce_fast` because of the per-item Computed overhead, but
+ * necessary if your reducer function depends on signal values.
+ */
 export function reduce<
     ProdValue,
     ProdEvents extends ReqColTypes<ProdValue>,
@@ -755,6 +772,7 @@ export function reduce<
     return result;
 }
 
+/** Convenience built on `reduce`: count items by mapping each item to a number contribution. */
 export function count<
     Producer extends I_NativeCollection<any, any>
 >(
@@ -778,6 +796,11 @@ export function count<
 
 
 
+// =============================================================================
+// REFERENCE / FUTURE WORK — map_fast skeleton and producer/consumer pattern sketch.
+// Preserved as design notes; not currently functional.
+// =============================================================================
+
 // Map/Filter
 
 // export function map_fast<
@@ -793,96 +816,44 @@ export function count<
 // ): I_NativeCollection<ConsValue,any>
 // {
 //     const result = new constructor();
-
 //     const dirty_entries = new Map<ProdValue, ReqColTypes<ProdValue>["add" | "delete"]>();
 //     let fully_dirty = false;
-
-//     function reset_value()
-//     {
-//         let new_value = initial_value;
-
-//         for (let value of producer.get())
-//             new_value = handler({ event: "add", value }, new_value);
-
-//         result.set(new_value);
-//         fully_dirty = false;
-//         dirty_entries.clear();
-//     }
-
-//     result.get = () =>
-//     {
-//         if (fully_dirty)
-//             reset_value();
-//         else
-//         {
-//             let new_value = result._value;
-//             for (let value of dirty_entries.values())
-//                 new_value = handler(value, new_value);
-//             result.set(new_value);
-//         }
-
-//         return result._value;
-//     }
-
-//     if (dependends_on.length > 0)
-//     {
-//         const dependency_handler = {
-//             dirty: function (source?: I_Subscribable<any>)
-//             {
-//                 fully_dirty = true;
-//                 result.dirty();
-//             }
-//         }
-
-//         result["dependency_handler"] = dependency_handler; // Bind it so it GCs alongside the result
-
-//         for (let dependency of dependends_on)
-//             dependency.subscribe(dependency_handler);
-//     }
-
+//
+//     function reset_value() { /* ...same shape as reduce_fast... */ }
+//
+//     result.get = () => { /* ...lazy fold... */ }
+//
+//     if (dependends_on.length > 0) { /* ...attach dependency handler... */ }
+//
 //     producer._on_change_instant.subscribe((_, ve) =>
 //     {
-//         // fully dirty will calculate all entries from scratch the next time
-//         // the result's get() function is called.
-//         if (fully_dirty)
-//             return;
-
-//         // Either it has added and then deleted, or vice versa. 
-//         // Either way, skip updating the value altogether
-//         if (dirty_entries.has(ve["value"]))
-//             dirty_entries.delete(ve["value"]);
-//         else
-//             dirty_entries.set(ve["value"], ve);
+//         if (fully_dirty) return;
+//         if (dirty_entries.has(ve["value"])) dirty_entries.delete(ve["value"]);
+//         else dirty_entries.set(ve["value"], ve);
 //     });
-
-
+//
 //     reset_value();
-
 //     return result;
 // }
 
 
-
 // function transform<
-// ProdValue, 
-// ProdEvents extends ReqColTypes<ProdValue>, 
-// Producer extends I_NativeCollection<ProdValue,ProdEvents>,
-// ConsValue, 
-// ConsEvents extends ReqColTypes<ProdValue>, 
-// Consumer extends I_NativeCollection<ProdValue,ProdEvents>,
-
+//     ProdValue,
+//     ProdEvents extends ReqColTypes<ProdValue>,
+//     Producer extends I_NativeCollection<ProdValue, ProdEvents>,
+//     ConsValue,
+//     ConsEvents extends ReqColTypes<ProdValue>,
+//     Consumer extends I_NativeCollection<ProdValue, ProdEvents>,
 // >(
-//     producer:Producer
+//     producer: Producer
 // )
 // {
 //     // consumer + producer pattern
-
+//
 //     // Map uses
-//     let mapExample : (value:ProdValue)=>ConsValue;
+//     let mapExample : (value:ProdValue) => ConsValue;
 //     // Filter uses (Plus requires ConsValue === ProdValue)
-//     let filterExample : (value:ProdValue)=>boolean
+//     let filterExample : (value:ProdValue) => boolean;
 //     // Reduce uses (Plus result is single NativeSignal)
-//     let reduceExample : (value:ProdValue)=>ConsValue
-
+//     let reduceExample : (value:ProdValue) => ConsValue;
 // }
-

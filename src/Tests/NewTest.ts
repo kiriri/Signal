@@ -2,7 +2,7 @@
 
 import { SignalSet, SignalMap, Order, Reducer, I_NativeCollection } from "src/Collections";
 import { StatefulSubscribable, NativeSignal, Computed } from "src/Core";
-import { Interval } from "src/Events";
+import { interval } from "src/Events";
 import { Effect } from "src/Sinks";
 
 const finalized: any[] = [];
@@ -80,6 +80,8 @@ async function runTests()
 
         finalized.length = 0;
     }
+
+    console.log("Done! Press Ctrl+C to exit.")
 
 }
 
@@ -363,17 +365,18 @@ tests.push(async () =>
 
     async function scope1()
     {
-        let interval = Interval(10);
-        finalizer.register(interval, "Interval");
+        let _interval = interval(10);
+        console.log(_interval)
+        finalizer.register(_interval, "Interval");
 
         let computed1 = new Computed(() =>
         {
-            return interval.get();
+            return _interval.get();
         });
 
         await wait(109);
 
-        console.log(interval.get(), computed1.get());
+        console.log(_interval.get(), computed1.get());
 
         assertValue(10, computed1);
     };

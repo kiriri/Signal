@@ -10,7 +10,7 @@
       "skipLibCheck": true, // Don't fail if a typescript error happens at compile time
       "esModuleInterop": true,
       "moduleResolution": "node",
-      "lib": ["ESNext", "ES2021.WeakRef"],
+      "lib": ["ESNext", "ES2021.WeakRef", "dom"],
       "isolatedModules": false,
       "module": "ESNext",
       "target": "ESNext"

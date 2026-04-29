@@ -1,2 +1,2 @@
-export * from "./Interval";
+export * from "./interval";
 export * from "./QuantizedQueue"

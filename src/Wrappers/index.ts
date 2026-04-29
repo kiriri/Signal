@@ -1,1 +1,1 @@
-export * from "./LocalStorageWrapper"
+export * from "./local_storage_wrapper";

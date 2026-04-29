@@ -1,5 +1,5 @@
 import { Flatten } from "src/_decorators/flatten";
-import EventManager from "./_Events";
+import EventManager from "./_events";
 import type { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable } from "./Subscribable";
 import Subscribable from "./Subscribable";
 /**
