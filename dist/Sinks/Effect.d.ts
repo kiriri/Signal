@@ -1,6 +1,6 @@
 import type { I_Subscribable, LinkedList } from "../Core/Subscribable";
 import Subscribable from "../Core/Subscribable";
-type MappedSignals<Inputs extends Record<string, Subscribable<any>>> = {
+type MappedSignals<Inputs extends Record<string, I_Subscribable<any>>> = {
     [K in keyof Inputs]: Inputs[K] extends Subscribable<infer U> ? U : Inputs[K] extends {
         get(): infer U;
     } ? U : never;
@@ -8,7 +8,7 @@ type MappedSignals<Inputs extends Record<string, Subscribable<any>>> = {
 /**
  * An effect may reference any number of subscribables in its function, but it will only run whenever one of its sources changes.
  */
-export declare class Effect<Inputs extends Record<string, Subscribable<any>>, T> {
+export declare class Effect<Inputs extends Record<string, I_Subscribable<any>>, T> {
     readonly sources: Inputs;
     fn: (v: MappedSignals<Inputs>, self: any) => T;
     _source_cache: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never>;

@@ -710,6 +710,12 @@ class Order extends Subscribable {
     nodes = new Map();
     first = null;
     last = null;
+    constructor(values) {
+        super();
+        if (values)
+            for (let value of values)
+                this._add(value);
+    }
     get() {
         // TODO : Cache this! Clear cache on change.
         return [...this].map(v => v.value);

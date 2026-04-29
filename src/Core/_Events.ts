@@ -1,7 +1,5 @@
 import type Subscribable from "./Subscribable";
 
-const IS_NODE = typeof process === 'object';
-
 export default class EventManager
 {
     // This is set or replaced whenever a computed type ( or a similar custom Subscribable )
@@ -29,11 +27,7 @@ export default class EventManager
             {
                 fn(context);
             }
-            // setImmediate is faster but only works reliably in node
-            if (IS_NODE)
-                setImmediate(a);
-            else // firefox breaks terribly if setImmediate is used.
-                setTimeout(a, 0);
+            queueMicrotask(a);
         // }
         // this.waiting_to_emit.push(fn);
     }

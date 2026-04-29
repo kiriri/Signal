@@ -45,6 +45,7 @@ export declare class Order<T> extends Subscribable<Iterable<T>, OrderEvents<T>> 
     nodes: Map<T, OrderNode<T>>;
     first: OrderNode<T>;
     last: OrderNode<T>;
+    constructor(values?: Iterable<T>);
     get(): T[];
     _createNode(value: T): OrderNode<T>;
     _delete(value: T): void;

@@ -173,6 +173,14 @@ export class Order<T> extends Subscribable<Iterable<T>,OrderEvents<T>> implement
     first: OrderNode<T> = null;
     last: OrderNode<T> = null;
 
+    constructor(values?: Iterable<T>)
+    {
+        super();
+        if(values)
+            for(let value of values)
+                this._add(value);
+    }
+
     get()
     {
         // TODO : Cache this! Clear cache on change.

@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "description": "Similar to Angular's Signal system, but framework independent, fast, and with some collection support.",
+  "description": "Similar to Angular's Signal system, but framework independent, fast, and with some planned collection support.",
   "scripts": {
     "publish:local": "npm run build:mangled && npx yalc push --private",
     "test": "tsx --expose-gc ./src/Tests/NewTest.ts & tsx --expose-gc ./src/Tests/StressTest2.ts",

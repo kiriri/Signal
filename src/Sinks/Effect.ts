@@ -2,7 +2,7 @@ import EventManager from "src/Core/_Events";
 import type { Dirtyable, I_Subscribable, LinkedList } from "../Core/Subscribable";
 import Subscribable from "../Core/Subscribable";
 
-type MappedSignals<Inputs extends Record<string, Subscribable<any>>> = { [K in keyof Inputs]: Inputs[K] extends Subscribable<infer U> ? U : Inputs[K] extends { get(): infer U } ? U : never };
+type MappedSignals<Inputs extends Record<string, I_Subscribable<any>>> = { [K in keyof Inputs]: Inputs[K] extends Subscribable<infer U> ? U : Inputs[K] extends { get(): infer U } ? U : never };
 
 function async_caller(self: Effect<any,any>)
 {
@@ -15,7 +15,7 @@ function async_caller(self: Effect<any,any>)
 /**
  * An effect may reference any number of subscribables in its function, but it will only run whenever one of its sources changes.
  */
-export class Effect<Inputs extends Record<string, Subscribable<any>>, T>
+export class Effect<Inputs extends Record<string, I_Subscribable<any>>, T>
 {
     _source_cache: Record<keyof Inputs, Inputs[keyof Inputs] extends Subscribable<infer U> ? U : never> = {} as any;
 
