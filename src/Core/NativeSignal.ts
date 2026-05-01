@@ -77,7 +77,7 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
 
     /**
      * Update the value by applying a function to the current value. Equivalent to
-     * `signal.set(fn(signal._value))` but skips the extra method call.
+     * `signal.set(fn(signal._value))`.
      */
     update(fn: (v: T) => T)
     {

@@ -29,8 +29,12 @@ export default class EventManager
      */
     static global_listeners: Subscribable<any, any>[] = null!;
 
-    /** Reserved for a future batched-emit optimization. Not currently used. */
-    static waiting_to_emit: Function[] = [];
+    /** 
+     * for a batched-emit optimization.
+     * Interleaved function, context .
+     * */
+    static waiting_to_emit: any[] = [];
+    static _is_waiting = false;
 
     /**
      * Register a function to be invoked once on the next microtask.
@@ -42,10 +46,33 @@ export default class EventManager
      */
     static register_async_emit(fn: Function, context?: any)
     {
-        function a()
+
+        this.waiting_to_emit.push(fn, context);
+
+        if (!this._is_waiting)
         {
-            fn(context);
+            this._is_waiting = true;
+            queueMicrotask(EventManager.#process_queue);
         }
-        queueMicrotask(a);
+    }
+
+    static #process_queue()
+    {
+        EventManager._is_waiting = false;
+        let queue = EventManager.waiting_to_emit;
+        EventManager.waiting_to_emit = [];
+
+        for (let i = 0; i < queue.length; i += 2)
+        {
+            (queue[i] as Function)(queue[i + 1]);
+        }
+    }
+
+    /**
+     * Force all the functions waiting to emit to be processed.
+     */
+    static flush()
+    {
+        this.#process_queue();
     }
 }

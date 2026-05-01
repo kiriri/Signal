@@ -1,4 +1,4 @@
-import { Subscribable, I_Subscribable } from "../Core/Subscribable";
+import { Subscribable, I_Subscribable, Dirtyable, LinkedList } from "../Core/Subscribable";
 import EventManager from "../Core/_events";
 
 const EMPTY = {} as any;
@@ -74,6 +74,7 @@ export class BufferedSubscribable<T> implements I_Subscribable<T[]>
     readonly subscribe = this.proxy.subscribe.bind(this.proxy);
     readonly unsubscribe = this.proxy.unsubscribe.bind(this.proxy);
     readonly dirty = this.proxy.dirty.bind(this.proxy);
+    readonly depend = this.proxy.depend.bind(this.proxy);
 
     /**
      * Push a value into the buffer manually.
@@ -90,9 +91,8 @@ export class BufferedSubscribable<T> implements I_Subscribable<T[]>
     /**
      * Returns the current buffer and resets it internally.
      *
-     * **Conflict warning.** Calling `consume()` while subscribers are also attached
-     * means those subscribers will *not* see the values you consumed — you've already
-     * cleared the buffer. Pick one consumer pattern.
+     * Calling `consume()` while subscribers are also attached
+     * means those subscribers will *not* see the values you consumed.
      *
      * Also performs Computed-style dependency tracking: if called inside a Computed,
      * the Computed will subscribe to this buffer's emissions.
@@ -103,8 +103,7 @@ export class BufferedSubscribable<T> implements I_Subscribable<T[]>
         this.buffer = [];
         this._dirty = false;
 
-        if (EventManager.global_listeners)
-            EventManager.global_listeners.push(this.proxy);
+        EventManager.global_listeners?.push(this.proxy);
 
         return result;
     }

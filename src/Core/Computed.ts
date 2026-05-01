@@ -53,7 +53,9 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
     /** Last computed value. Defined after the first evaluation. */
     _cache!: T;
 
-    /** Whether this computed re-runs whenever a dependency changes (vs lazily on `get`). */
+    /** Whether this computed re-runs whenever a dependency changes (vs lazily on `get`). 
+     * An eager computed behaves more like an 'Effect' .
+    */
     _eager!: boolean;
 
     /**
@@ -127,14 +129,8 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
     }
 
     override subscribe(
-        subscribable: Dirtyable
-    ): LinkedList<WeakRef<Dirtyable>>;
-    override subscribe(
-        subscribable: (source: I_Subscribable<T>, value: T, ref: LinkedList<T>) => any | void
-    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<T>) => any | void>>;
-    override subscribe(
-        fn: ((source: I_Subscribable<T>, value: T, ref: LinkedList<T>) => any) | Dirtyable
-    ): LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T, ref: LinkedList<T>) => any)>>
+        fn: (source: this, value: T, ref: LinkedList<any>) => any | void
+    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>
     {
         if (this._dirty === "first")
         {
@@ -143,7 +139,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
             this._get();
         }
 
-        return super.subscribe(arguments[0]);
+        return super.subscribe(fn);
     }
 
     /**
@@ -163,9 +159,16 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
         // Stash the parent tracker (if any) so nested computeds work correctly.
         let parent_listeners = EventManager.global_listeners;
         const global_listeners = EventManager.global_listeners = <Subscribable<any>[]>[];
-        EventManager.global_listeners = global_listeners;
 
-        let value = this.fn(this.context);
+        let value: T;
+        try
+        {
+            value = this.fn(this.context);
+        } finally
+        {
+            // Restore the parent tracker for any enclosing computed.
+            EventManager.global_listeners = parent_listeners;
+        }
 
         let subscribed_to = this.subscribed_to;
 
@@ -201,9 +204,6 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
         if (length < l1)
             subscribed_to.length = length;
 
-        // Restore the parent tracker for any enclosing computed.
-        EventManager.global_listeners = parent_listeners;
-
         this._cache = value;
 
         return value;
@@ -217,9 +217,9 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
     destroy()
     {
         this._dirty = false;
-        for (let sub of this.subscribed_to)
+        for (const { signal, ref } of this.subscribed_to)
         {
-            sub[0].unsubscribe(sub[1].ref);
+            signal.unsubscribe(ref);
         }
 
         this.subscribed_to.length = 0;
