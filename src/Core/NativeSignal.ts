@@ -1,5 +1,5 @@
 import { Flatten } from "src/_decorators/flatten";
-import EventManager from "./_events";
+import EventManager, { push_subscribable } from "./_events";
 import type { LinkedList, StatefulSubscribable } from "./Subscribable";
 import Subscribable from "./Subscribable";
 
@@ -57,8 +57,7 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
      */
     get(): T
     {
-        if (EventManager.global_listeners)
-            EventManager.global_listeners.push(this);
+        push_subscribable(this);
         return this._value;
     }
 

@@ -51,7 +51,7 @@ export class Effect<Inputs extends Record<string, I_Subscribable<any>>, T>
 
     /** Per-source subscription handles, used for `destroy()`. */
     _updaters: {
-        [x: string]: LinkedList<WeakRef<(source: I_Subscribable<any>, value: any, ref: LinkedList<T>) => any | void>>;
+        [x: string]: LinkedList<WEAK_REF<(source: I_Subscribable<any>, value: any, ref: LinkedList<T>) => any | void>>;
     } = {};
 
     /** True between "a source changed" and "we ran fn". Prevents duplicate microtask scheduling. */

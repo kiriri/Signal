@@ -1,7 +1,7 @@
 import { NativeSignal } from "../Core/NativeSignal";
 import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 import { I_NativeCollection } from "./Collection";
-import EventManager from "src/Core/_events";
+import EventManager, { push_subscribable } from "src/Core/_events";
 
 export type MapEvents<K, T> = {
     add: {
@@ -66,8 +66,8 @@ export class SignalMap<K, V>
         {
             return this._internal.get(key) as V;
         }
-        if (EventManager.global_listeners)
-            EventManager.global_listeners.push(this);
+
+            push_subscribable(this);
 
         return this._internal;
     }

@@ -1,5 +1,5 @@
 import { Flatten } from "src/_decorators/flatten";
-import EventManager from "./_events";
+import EventManager, { push_subscribable } from "./_events";
 import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable";
 
 /**
@@ -84,6 +84,11 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
         }
     }
 
+    on_emit(context: Computed<T, CONTEXT>)
+    {
+        context.emit(context.get());
+    }
+
     /**
      * Mark this computed dirty and propagate through the dependency graph.
      *
@@ -104,7 +109,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
         // if someone is subscribed (otherwise nobody would receive the emission).
         if (this.subscribers !== undefined || this._eager)
         {
-            EventManager.register_async_emit(() => this.emit(this.get()))
+            EventManager.register_async_emit(this.on_emit, this)
         }
     };
 
@@ -117,10 +122,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
     {
         // If this computed is being read inside another computed's evaluation:
         // register ourselves with the enclosing tracker.
-        if (EventManager.global_listeners !== null)
-        {
-            EventManager.global_listeners.push(this);
-        }
+        push_subscribable(this);
 
         if (this._dirty)
             return this._get();
@@ -130,7 +132,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
 
     override subscribe(
         fn: (source: this, value: T, ref: LinkedList<any>) => any | void
-    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>
+    ): LinkedList<WEAK_REF<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>
     {
         if (this._dirty === "first")
         {
@@ -156,58 +158,165 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
     {
         this._dirty = false;
 
-        // Stash the parent tracker (if any) so nested computeds work correctly.
-        let parent_listeners = EventManager.global_listeners;
-        const global_listeners = EventManager.global_listeners = <Subscribable<any>[]>[];
+        EventManager.global_listen++;
+        let global_listener_index = EventManager.global_listener_length;
 
         let value: T;
         try
         {
             value = this.fn(this.context);
-        } finally
+        } 
+        finally
         {
             // Restore the parent tracker for any enclosing computed.
-            EventManager.global_listeners = parent_listeners;
+            EventManager.global_listen--;
         }
 
         let subscribed_to = this.subscribed_to;
 
-        // Drop all previous dependency subscriptions.
-        const l1 = subscribed_to.length;
-        for (let i = 0; i < l1; i++)
+        // If there's just one source, then nothing can have changed.
+        // Exception : Untracked side effect. 
+        const fresh_dependency_length = EventManager.global_listener_length - global_listener_index;
+        if (subscribed_to.length <= 1 && fresh_dependency_length === subscribed_to.length)
         {
-            let { ref, signal } = subscribed_to[i];
-            signal.unsubscribe(ref);
         }
-
-        // Reuse the existing array slots where possible (avoid push() growing the array
-        // when N is stable across runs), append where not.
-        const length = global_listeners.length;
-        for (let i = 0; i < length; i++)
+        else
         {
-            const sub = global_listeners[i];
-
-            if (i < l1)
+            // Drop all previous dependency subscriptions.
+            const l1 = subscribed_to.length;
+            for (let i = 0; i < l1; i++)
             {
-                let existing = subscribed_to[i];
-                existing.ref = sub.depend(this);
-                existing.signal = sub;
+                let { ref, signal } = subscribed_to[i];
+                signal.unsubscribe(ref);
             }
-            else
-                subscribed_to.push({
-                    signal: sub,
-                    ref: sub.depend(this)
-                });
-        }
 
-        // Shrink if we have fewer dependencies this time around.
-        if (length < l1)
-            subscribed_to.length = length;
+            // Reuse the existing array slots where possible (avoid push() growing the array
+            // when N is stable across runs), append where not.
+            const length = EventManager.global_listener_length;
+            for (let i = global_listener_index; i < length; i++)
+            {
+                const sub = EventManager.global_listeners[i];
+
+                // Make sure to release all the unused potential listeners so GC can kick in.
+                if($USE_WEAK_REFS$)
+                    EventManager.global_listeners[i] = undefined;
+
+                if (i < l1)
+                {
+                    let existing = subscribed_to[i];
+                    existing.ref = sub.depend(this);
+                    existing.signal = sub;
+                }
+                else
+                    subscribed_to.push({
+                        signal: sub,
+                        ref: sub.depend(this)
+                    });
+            }
+
+            // Shrink if we have fewer dependencies this time around.
+            if (length < l1)
+                subscribed_to.length = length;
+
+        }
 
         this._cache = value;
+        // Restore global listeners to their previous length (internal length should not contract)
+        EventManager.global_listener_length = global_listener_index;
+
 
         return value;
     }
+
+    /**
+     * Alt version of _get for performance testing. Slower
+     * @returns 
+     */
+    // _get2()
+    // {
+    //     this._dirty = false;
+
+    //     // Stash the parent tracker so nested computeds work correctly.
+    //     const parent_listeners = EventManager.global_listeners;
+    //     const global_listeners = EventManager.global_listeners = <Subscribable<any>[]>[];
+
+    //     let value: T;
+    //     try
+    //     {
+    //         value = this.fn(this.context);
+    //     }
+    //     finally
+    //     {
+    //         EventManager.global_listeners = parent_listeners;
+    //     }
+
+    //     const subscribed_to = this.subscribed_to;
+    //     const prev_len = subscribed_to.length;
+    //     const next_len = global_listeners.length;
+
+    //     // Fast path: single stable dependency (common case for simple computeds).
+    //     if (prev_len === 1 && next_len === 1 && subscribed_to[0].signal === global_listeners[0])
+    //     {
+    //         // Dependency unchanged — nothing to do.
+    //     }
+    //     else if (prev_len !== 0 || next_len !== 0)
+    //     {
+    //         // Build a Set of incoming signals for O(1) lookup during the diff.
+    //         // Only allocated when the fast path doesn't apply.
+    //         const next_set = next_len > 1 ? new Set(global_listeners) : null;
+
+    //         // --- Unsubscribe signals that dropped out ---
+    //         for (let i = 0; i < prev_len; i++)
+    //         {
+    //             const { signal, ref } = subscribed_to[i];
+    //             // Skip if this signal is still present in the new set.
+    //             if (next_set ? next_set.has(signal) : signal === global_listeners[0])
+    //                 continue;
+    //             signal.unsubscribe(ref);
+    //         }
+
+    //         // Build a Set of OLD signals for O(1) lookup when subscribing new ones.
+    //         const prev_set = prev_len > 1
+    //             ? new Set(subscribed_to.map(s => s.signal))
+    //             : null;
+
+    //         // --- Subscribe to signals that are newly added; reuse slots ---
+    //         for (let i = 0; i < next_len; i++)
+    //         {
+    //             const sig = global_listeners[i];
+    //             const is_new = prev_set ? !prev_set.has(sig) : (prev_len === 0 || sig !== subscribed_to[0]?.signal);
+
+    //             if (i < prev_len)
+    //             {
+    //                 const existing = subscribed_to[i];
+    //                 if (is_new)
+    //                 {
+    //                     // Slot used to hold a different signal — subscribe to the new one.
+    //                     existing.ref = sig.depend(this);
+    //                     existing.signal = sig;
+    //                 }
+    //                 else
+    //                 {
+    //                     // Same signal, just update the slot to point at it correctly.
+    //                     existing.signal = sig;
+    //                     // ref is still valid — no need to re-subscribe.
+    //                 }
+    //             }
+    //             else
+    //             {
+    //                 // Grew beyond previous length — append.
+    //                 subscribed_to.push({ signal: sig, ref: sig.depend(this) });
+    //             }
+    //         }
+
+    //         // Shrink array if dependency count fell.
+    //         if (next_len < prev_len)
+    //             subscribed_to.length = next_len;
+    //     }
+
+    //     this._cache = value;
+    //     return value;
+    // }
 
     /**
      * Stop listening to dependencies and prevent future re-evaluation. Call `_get()`

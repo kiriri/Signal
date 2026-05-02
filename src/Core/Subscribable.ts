@@ -52,13 +52,13 @@ export interface I_Subscribable<T>
 {
     depend(
         subscribable: Dirtyable
-    ): LinkedList<WeakRef<Dirtyable>>;
+    ): LinkedList<WEAK_REF<Dirtyable>>;
 
     subscribe(
         subscribable: (source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void
-    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>;
+    ): LinkedList<WEAK_REF<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>;
 
-    unsubscribe(reference: LinkedList<WeakRef<Dirtyable | ((source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void)>>): this;
+    unsubscribe(reference: LinkedList<WEAK_REF<Dirtyable | ((source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void)>>): this;
 
     dirty(source: I_Subscribable<any>, ref?: LinkedList<any>, value?: any);
 }
@@ -88,7 +88,7 @@ export interface I_GettableSubscribable<T> extends I_Subscribable<T>
     get(): T
 }
 
-export type EventRef<Event> = LinkedList<WeakRef<(source: Subscribable<any, any>, event: Event, ref: EventRef<Event>) => any>> & {
+export type EventRef<Event> = LinkedList<WEAK_REF<(source: Subscribable<any, any>, event: Event, ref: EventRef<Event>) => any>> & {
     event?: string
 }
 
@@ -119,7 +119,7 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
      * Linked list of value subscribers. Held weakly so they can be GC'd if nobody else
      * references the function. The list head is `undefined` when there are no subscribers.
      */
-    subscribers: LinkedList<WeakRef<(
+    subscribers: LinkedList<WEAK_REF<(
         source: I_Subscribable<T>,
         value: any,
         ref: LinkedList<any>
@@ -129,7 +129,7 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
      * Linked list of dependants — other Subscribables (typically `Computed`/`Effect`)
      * that need to be marked dirty when this one changes. Also held weakly.
      */
-    dependants: LinkedList<WeakRef<Dirtyable>> | undefined;
+    dependants: LinkedList<WEAK_REF<Dirtyable>> | undefined;
 
     /** Named event subscribers, keyed by event name. */
     events: Record<string,
@@ -165,7 +165,7 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
             // Held weakly so that the next subscription doesn't end up referencing this one
             // (it's a linked list after all), which would create a chain of strong references
             // and prevent GC from cleaning up orphaned subscribers.
-            value: new WeakRef(fn),
+            value: $USE_WEAK_REFS$ ? new WeakRef(fn) : fn,
             event: event as string
         };
 
@@ -234,11 +234,18 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
         let events = this.events?.[event.event];
         while (events !== undefined)
         {
-            const deref = events.value.deref();
-            if (deref === undefined)
-                this.unsubscribe_event(events)
+            if ($USE_WEAK_REFS$)
+            {
+                const deref = events.value["deref"]();
+                if (deref === undefined)
+                    this.unsubscribe_event(events)
+                else
+                    deref(this as any, event, events)
+            }
             else
-                deref(this as any, event, events)
+            {
+                events.value(this, event, events);
+            }
 
             events = events.next;
         }
@@ -246,11 +253,18 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
         let events2 = this.any_events;
         while (events2 !== undefined)
         {
-            const deref = events2.value.deref();
-            if (deref === undefined)
-                this.unsubscribe_event(events2)
+            if ($USE_WEAK_REFS$)
+            {
+                const deref = events2.value["deref"]();
+                if (deref === undefined)
+                    this.unsubscribe_event(events2)
+                else
+                    deref(this as any, event, events2)
+            }
             else
-                deref(this as any, event as any, events2)
+            {
+                events2.value(this, event, events2);
+            }
 
             events2 = events2.next;
         }
@@ -269,13 +283,13 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
      */
     subscribe(
         fn: (source: this, value: T, ref: LinkedList<any>) => any | void
-    ): LinkedList<WeakRef<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>
+    ): LinkedList<WEAK_REF<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>
     {
         const previous_first_item = this.subscribers;
 
-        const new_item: LinkedList<WeakRef<typeof fn>> = this.subscribers = {
+        const new_item: LinkedList<WEAK_REF<typeof fn>> = this.subscribers = {
             next: previous_first_item,
-            value: new WeakRef(fn)
+            value: $USE_WEAK_REFS$ ? new WeakRef(fn) : fn
         }
 
         if (previous_first_item !== undefined)
@@ -291,13 +305,13 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
      */
     depend(
         subscribable: Dirtyable
-    ): LinkedList<WeakRef<Dirtyable>>
+    ): LinkedList<WEAK_REF<Dirtyable>>
     {
         const previous_first_item = this.dependants;
 
-        const new_item: LinkedList<WeakRef<Dirtyable>> = this.dependants = {
+        const new_item: LinkedList<WEAK_REF<Dirtyable>> = this.dependants = {
             next: previous_first_item,
-            value: new WeakRef(subscribable)
+            value: $USE_WEAK_REFS$ ? new WeakRef(subscribable) : subscribable
         }
 
         if (previous_first_item !== undefined)
@@ -346,7 +360,7 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
         let dependant = this.dependants;
         while (dependant !== undefined)
         {
-            const deref = dependant.value.deref();
+            const deref = $USE_WEAK_REFS$ ? dependant.value["deref"]() : dependant.value;
             if (deref === undefined)
                 this.unsubscribe(dependant)
             else
@@ -367,14 +381,15 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
         let subscriber = this.subscribers;
         while (subscriber !== undefined)
         {
-            const deref = subscriber.value.deref();
+            const deref = $USE_WEAK_REFS$ ? subscriber.value["deref"]() : subscriber.value;
             if (deref === undefined)
             {
-                console.log("Deref undefined ", subscriber);
                 this.unsubscribe(subscriber)
             }
             else
+            {
                 deref(this as any, value, subscriber)
+            }
 
 
             subscriber = subscriber.next;

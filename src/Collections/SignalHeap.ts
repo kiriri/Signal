@@ -1,6 +1,6 @@
 import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
 import type { I_NativeCollection } from "./Collection";
-import EventManager from "src/Core/_events";
+import EventManager, { push_subscribable } from "src/Core/_events";
 
 export type HeapEvents<T> = {
     add: {
@@ -72,8 +72,7 @@ export class SignalHeap<T>
     {
         let self = this;
 
-        if (EventManager.global_listeners)
-            EventManager.global_listeners.push(this);
+        push_subscribable(this);
 
         return (function* iterator()
         {

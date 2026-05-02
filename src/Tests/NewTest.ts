@@ -5,6 +5,11 @@ import { StatefulSubscribable, NativeSignal, Computed } from "src/Core";
 import { interval } from "src/Events";
 import { Effect } from "src/Sinks";
 
+
+// Therefore we need to substitute our own global.
+// @ts-ignore
+globalThis.$USE_WEAK_REFS$ = true;
+
 const finalized: any[] = [];
 const finalizer = new FinalizationRegistry((v) =>
 {
@@ -101,6 +106,8 @@ tests.push(function test1()
 
     signal1.update(value => value * 2);
     assertValue(-2, signal1);
+
+    console.log("Test 1 done");
 });
 
 // Test simple subscribe operation.
@@ -132,6 +139,9 @@ tests.push(async function test2()
 
     // console.log(3, signal1.get(), signal2.get());
     assertValue(3, signal1, signal2);
+
+    console.log("Test 2 done");
+
 }
 );
 
@@ -194,6 +204,9 @@ tests.push(async function test3()
     await scope1();
 
     await assertGcCount(1);
+
+    console.log("Test 3 done");
+
 }
 );
 

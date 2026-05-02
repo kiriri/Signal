@@ -1,50 +1,54 @@
 import typescript from '@rollup/plugin-typescript';
-import { uglify } from "rollup-plugin-uglify"
-import { terser } from 'rollup-plugin-terser';
-import compiler from '@ampproject/rollup-plugin-closure-compiler';
 import { flattenClassesTransformer } from './ts-transformer-flatten.ts';
-// import flattenClasses from './rollup.plugin.flatten-classes.ts';
+// Required for compile time dead branch elemination, like `if(false){}`
+// We use this in combination with the use `weak ref constant`.
+import replace from '@rollup/plugin-replace';
+// Required to turn `let a = true ? 1 : 2` into `let a = 1`;
+import terser from '@rollup/plugin-terser';
 
-export default {
-  input: 'src/index.ts',
+
+const makeConfig = (useWeakRefs: boolean, benchmark:boolean) => ({
+  input: benchmark ? 'src/Tests/Benchmark/index.ts' : 'src/index.ts',
   output: {
-    dir: 'dist',
+    dir: benchmark ? `dist/${useWeakRefs ? 'weak' : 'strong'}/Tests` : `dist/${useWeakRefs ? 'weak' : 'strong'}`,
     format: 'es',
-    sourcemap:true
+    sourcemap: true
   },
   plugins: [
-    // flattenClasses(),
+    replace({
+      preventAssignment: true,
+      values: {
+        $USE_WEAK_REFS$: JSON.stringify(useWeakRefs)
+      }
+    }),
     typescript({
+      outDir: benchmark ? `dist/${useWeakRefs ? 'weak' : 'strong'}/Tests` : `dist/${useWeakRefs ? 'weak' : 'strong'}`,
       transformers: {
-        before:[
+        before: [
           {
-            factory:flattenClassesTransformer,
-            type:"program"
+            factory: flattenClassesTransformer,
+            type: "program"
           }
         ]
       },
     }),
-    // terser({
-    //   compress: {
-    //     inline: true,       // inline functions
-    //     pure_funcs: [],     // list of functions to consider pure
-    //     passes: 3,           // more passes can find more inlining opportunities
-    //     toplevel:true,
-    //     hoist_funs:true,
-    //     hoist_vars:true,
-    //   },
-    //   ecma: "next"
-    // }),
-    // typescript(),
-    // uglify({
-    //   mangle: {
-    //     toplevel: true
-    //   }
-    // }),
-    // compiler(
-    //   {
-    //     compilation_level: 'ADVANCED'
-    //   }
-    // )
+    terser(benchmark ? undefined: { // folds constant ternaries, removes dead code
+      compress: {
+        evaluate: true,    // folds constant expressions
+        dead_code: true,   // removes unreachable branches
+      },
+      mangle: false,       // don't rename variables
+      format: {
+        beautify: true,    // keep readable formatting
+      }
+    })
   ]
-};
+});
+
+export default [
+  makeConfig(true, false),
+  makeConfig(true, true),
+  makeConfig(false, false),
+  makeConfig(false, true)
+];
+

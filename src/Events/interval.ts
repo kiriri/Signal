@@ -5,7 +5,7 @@ import { NativeSignal } from "../Core/NativeSignal";
  * GC'd if nobody holds it; the FinalizationRegistry below reaps the underlying
  * `setInterval` when that happens.
  */
-let intervals = new Map<number, WeakRef<NativeSignal<number>>>();
+let intervals = new Map<number, WEAK_REF<NativeSignal<number>>>();
 
 const registry = new FinalizationRegistry((interval_id: number) =>
 {
@@ -32,7 +32,7 @@ const registry = new FinalizationRegistry((interval_id: number) =>
  */
 export function interval(delta: number): NativeSignal<number>
 {
-    let signal = intervals.get(delta)?.deref();
+    let signal = $USE_WEAK_REFS$ ? intervals.get(delta)?.["deref"]() : intervals.get(delta);
 
     if (!signal)
     {
@@ -43,14 +43,14 @@ export function interval(delta: number): NativeSignal<number>
             // Don't reference the signal directly — that would pin it via the closure
             // held by setInterval (a global reference), preventing GC. Look it up via
             // the WeakRef cache instead.
-            const signal = intervals.get(delta)?.deref();
+            const signal = $USE_WEAK_REFS$ ? intervals.get(delta)?.["deref"]() : intervals.get(delta);
             signal?.set(signal._value + 1);
         }, delta);
 
         // Clean up the timer once the signal becomes unreachable.
         registry.register(signal, interval_id);
 
-        intervals.set(delta, new WeakRef(signal));
+        intervals.set(delta, $USE_WEAK_REFS$ ? new WeakRef(signal) : signal);
     }
 
     return signal;

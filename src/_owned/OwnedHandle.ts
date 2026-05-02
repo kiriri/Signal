@@ -12,7 +12,7 @@ const finalizer = new FinalizationRegistry((state:Handleable)=>{
 
 export class Handleable
 {
-    private _handle ?: WeakRef<OwnedHandle<this>>;
+    private _handle ?: WEAK_REF<OwnedHandle<this>>;
     private _destroyed : boolean = false;
     public fields : Record<string,Handleable> = {};
     test = 1;

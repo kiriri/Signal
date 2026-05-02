@@ -202,7 +202,7 @@ export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
      * shared `on_change` handler can recover its owning reducer without holding
      * a strong reference (which would prevent reducer GC while sources still exist).
      */
-    _self: WeakRef<this>;
+    _self: WEAK_REF<this>;
 
     /**
      * Subscribe to a single source signal. Returns a tagged subscription reference
@@ -217,14 +217,18 @@ export class Reducer<INPUT, OUTPUT> extends Subscribable<OUTPUT>
      */
     register_source(source: I_Subscribable<INPUT> | NativeSignal<INPUT>)
     {
-        const ref = source.subscribe(this.on_change) as LinkedList<WeakRef<(source: I_Subscribable<INPUT>, value: INPUT, ref: LinkedList<any>) => any | void>> & {
+        const ref = source.subscribe(this.on_change) as LinkedList<WEAK_REF<(source: I_Subscribable<INPUT>, value: INPUT, ref: LinkedList<any>) => any | void>> & {
             last: INPUT,
-            reducer: WeakRef<Reducer<INPUT, OUTPUT>>,
+            reducer: WEAK_REF<Reducer<INPUT, OUTPUT>>,
             source: typeof source
         };
 
         ref["last"] = this.identity_value;
-        ref["reducer"] = this._self ??= new WeakRef(this);
+        if($USE_WEAK_REFS$)
+            ref["reducer"] = this._self ??= new WeakRef(this);
+        else
+            ref["reducer"] = this;
+        
         ref["source"] = source;
 
         this.on_change(source, source.get?.(), ref);
