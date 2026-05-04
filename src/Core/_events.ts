@@ -82,11 +82,13 @@ export default class EventManager
 
 export function push_subscribable(sub: Subscribable<any, any>)
 {
-    if (EventManager.global_listen <= 0) return;
-    if (EventManager.real_length === EventManager.global_listener_length)
+    if (EventManager.global_listen > 0)
     {
-        EventManager.global_listeners.concat(new Array(EventManager.real_length))
-        EventManager.real_length *= 2;
+        if (EventManager.real_length === EventManager.global_listener_length)
+        {
+            EventManager.global_listeners.concat(new Array(EventManager.real_length))
+            EventManager.real_length *= 2;
+        }
+        EventManager.global_listeners[EventManager.global_listener_length++] = sub;
     }
-    EventManager.global_listeners[EventManager.global_listener_length++] = sub;
 }

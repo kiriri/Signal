@@ -21,7 +21,7 @@ class EventManager {
 }
 
 function push_subscribable(sub) {
-    EventManager.global_listen <= 0 || (EventManager.real_length === EventManager.global_listener_length && (EventManager.global_listeners.concat(new Array(EventManager.real_length)), 
+    EventManager.global_listen > 0 && (EventManager.real_length === EventManager.global_listener_length && (EventManager.global_listeners.concat(new Array(EventManager.real_length)), 
     EventManager.real_length *= 2), EventManager.global_listeners[EventManager.global_listener_length++] = sub);
 }
 
@@ -191,15 +191,15 @@ class Computed {
             next: previous_first_item,
             value: fn
         };
-        return void 0 !== previous_first_item && (previous_first_item.prev = new_item), 
-        new_item;
+        void 0 !== previous_first_item && (previous_first_item.prev = new_item);
     }
     depend(subscribable) {
         const previous_first_item = this.dependants, new_item = this.dependants = {
             next: previous_first_item,
             value: subscribable
         };
-        void 0 !== previous_first_item && (previous_first_item.prev = new_item);
+        return void 0 !== previous_first_item && (previous_first_item.prev = new_item), 
+        new_item;
     }
     unsubscribe(reference) {
         return void 0 !== reference.next && (reference.next.prev = reference.prev), void 0 !== reference.prev ? reference.prev.next = reference.next : this.dependants === reference ? this.dependants = this.dependants.next : this.subscribers === reference && (this.subscribers = this.subscribers.next), 

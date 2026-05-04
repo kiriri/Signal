@@ -21,7 +21,7 @@ class EventManager {
 }
 
 function push_subscribable(sub) {
-    EventManager.global_listen <= 0 || (EventManager.real_length === EventManager.global_listener_length && (EventManager.global_listeners.concat(new Array(EventManager.real_length)), 
+    EventManager.global_listen > 0 && (EventManager.real_length === EventManager.global_listener_length && (EventManager.global_listeners.concat(new Array(EventManager.real_length)), 
     EventManager.real_length *= 2), EventManager.global_listeners[EventManager.global_listener_length++] = sub);
 }
 
@@ -151,7 +151,7 @@ class Computed {
             const length = EventManager.global_listener_length;
             for (let i = global_listener_index; i < length; i++) {
                 const sub = EventManager.global_listeners[i];
-                if (i < l1) {
+                if (EventManager.global_listeners[i] = void 0, i < l1) {
                     let existing = subscribed_to[i];
                     existing.ref = sub.depend(this), existing.signal = sub;
                 } else subscribed_to.push({
@@ -162,7 +162,6 @@ class Computed {
             length < l1 && (subscribed_to.length = length);
         }
         return this._cache = value, EventManager.global_listener_length = global_listener_index, 
-        EventManager.global_listeners.fill(void 0, EventManager.global_listener_length), 
         value;
     }
     destroy() {
@@ -216,15 +215,15 @@ class Computed {
             next: previous_first_item,
             value: new WeakRef(fn)
         };
-        return void 0 !== previous_first_item && (previous_first_item.prev = new_item), 
-        new_item;
+        void 0 !== previous_first_item && (previous_first_item.prev = new_item);
     }
     depend(subscribable) {
         const previous_first_item = this.dependants, new_item = this.dependants = {
             next: previous_first_item,
             value: new WeakRef(subscribable)
         };
-        void 0 !== previous_first_item && (previous_first_item.prev = new_item);
+        return void 0 !== previous_first_item && (previous_first_item.prev = new_item), 
+        new_item;
     }
     unsubscribe(reference) {
         return void 0 !== reference.next && (reference.next.prev = reference.prev), void 0 !== reference.prev ? reference.prev.next = reference.next : this.dependants === reference ? this.dependants = this.dependants.next : this.subscribers === reference && (this.subscribers = this.subscribers.next), 
