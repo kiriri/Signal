@@ -101,11 +101,6 @@ class Subscribable {
     }
 }
 
-function detached(fn) {
-    let real_listener_count = EventManager.global_listen;
-    EventManager.global_listen = 0, fn(), EventManager.global_listen = real_listener_count;
-}
-
 class Computed {
     subscribed_to=[];
     fn;
@@ -196,15 +191,15 @@ class Computed {
             next: previous_first_item,
             value: fn
         };
-        return void 0 !== previous_first_item && (previous_first_item.prev = new_item), 
-        new_item;
+        void 0 !== previous_first_item && (previous_first_item.prev = new_item);
     }
     depend(subscribable) {
         const previous_first_item = this.dependants, new_item = this.dependants = {
             next: previous_first_item,
             value: subscribable
         };
-        void 0 !== previous_first_item && (previous_first_item.prev = new_item);
+        return void 0 !== previous_first_item && (previous_first_item.prev = new_item), 
+        new_item;
     }
     unsubscribe(reference) {
         return void 0 !== reference.next && (reference.next.prev = reference.prev), void 0 !== reference.prev ? reference.prev.next = reference.next : this.dependants === reference ? this.dependants = this.dependants.next : this.subscribers === reference && (this.subscribers = this.subscribers.next), 
@@ -335,6 +330,11 @@ class NativeSignal {
     constructor(value) {
         this._value = value;
     }
+}
+
+function detached(fn) {
+    let real_listener_count = EventManager.global_listen;
+    EventManager.global_listen = 0, fn(), EventManager.global_listen = real_listener_count;
 }
 
 class OrderNode {
