@@ -1,4 +1,4 @@
-import { LinkedList } from "src/Core/Subscribable";
+import { LinkedList } from "src/Core/Subscribable.js";
 /**
  * Schedulable item. Extends a linked-list node so that all items ending at the same
  * bucket can chain together in O(1).

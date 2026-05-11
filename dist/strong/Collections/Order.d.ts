@@ -1,5 +1,5 @@
-import { Subscribable } from "../Core/Subscribable";
-import type { I_NativeCollection } from "../Collections/Collection";
+import { Subscribable } from "../Core/Subscribable.js";
+import type { I_NativeCollection } from "../Collections/Collection.js";
 /**
  * A node in an `Order`. Holds a value plus links to neighboring nodes and a
  * back-reference to the owning `Order` (so the node can implement `delete()` /

@@ -1,6 +1,6 @@
 {
   "name": "native-signal",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,10 +14,12 @@
   },
   "exports": {
     "./weak": {
+      "require": "./dist/weak/index.js",
       "import": "./dist/weak/index.js",
       "types": "./dist/weak/index.d.ts"
     },
     "./strong": {
+      "require": "./dist/strong/index.js",
       "import": "./dist/strong/index.js",
       "types": "./dist/strong/index.d.ts"
     }

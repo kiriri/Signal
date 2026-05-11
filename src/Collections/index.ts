@@ -1,7 +1,7 @@
-export * from "./Collection";
-export * from "./Order";
-export * from "./SignalMap";
-export * from "./SignalSet";
-export * from "./SignalHeap";
+export * from "./Collection.js";
+export * from "./Order.js";
+export * from "./SignalMap.js";
+export * from "./SignalSet.js";
+export * from "./SignalHeap.js";
 
-export * from "./transformations";
+export * from "./transformations.js";

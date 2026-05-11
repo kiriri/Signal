@@ -7,7 +7,7 @@ import replace from '@rollup/plugin-replace';
 import terser from '@rollup/plugin-terser';
 
 
-const makeConfig = (useWeakRefs: boolean, benchmark:boolean) => ({
+const makeConfig = (useWeakRefs: boolean, benchmark: boolean) => ({
   input: benchmark ? 'src/Tests/Benchmark/index.ts' : 'src/index.ts',
   output: {
     dir: benchmark ? `dist/${useWeakRefs ? 'weak' : 'strong'}/Tests` : `dist/${useWeakRefs ? 'weak' : 'strong'}`,
@@ -23,6 +23,12 @@ const makeConfig = (useWeakRefs: boolean, benchmark:boolean) => ({
     }),
     typescript({
       outDir: benchmark ? `dist/${useWeakRefs ? 'weak' : 'strong'}/Tests` : `dist/${useWeakRefs ? 'weak' : 'strong'}`,
+      compilerOptions: {
+        declaration: true,
+        declarationDir: benchmark ? `dist/${useWeakRefs ? 'weak' : 'strong'}/Tests` : `dist/${useWeakRefs ? 'weak' : 'strong'}`,
+        module: 'NodeNext',           // Forces ESM-compliant output
+        moduleResolution: 'NodeNext', // Forces explicit extensions in .d.ts
+      },
       transformers: {
         before: [
           {
@@ -32,7 +38,7 @@ const makeConfig = (useWeakRefs: boolean, benchmark:boolean) => ({
         ]
       },
     }),
-    terser(benchmark ? undefined: { // folds constant ternaries, removes dead code
+    terser(benchmark ? undefined : { // folds constant ternaries, removes dead code
       compress: {
         evaluate: true,    // folds constant expressions
         dead_code: true,   // removes unreachable branches

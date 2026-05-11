@@ -1,6 +1,6 @@
-import EventManager from "src/Core/_events";
-import type { I_Subscribable, LinkedList } from "../Core/Subscribable";
-import Subscribable from "../Core/Subscribable";
+import EventManager from "src/Core/_events.js";
+import type { I_Subscribable, LinkedList } from "../Core/Subscribable.js";
+import Subscribable from "../Core/Subscribable.js";
 
 type MappedSignals<Inputs extends Record<string, I_Subscribable<any>>> = {
     [K in keyof Inputs]: Inputs[K] extends Subscribable<infer U>

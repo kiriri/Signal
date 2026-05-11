@@ -1,4 +1,4 @@
-import { NativeSignal } from "../Core/NativeSignal";
+import { NativeSignal } from "../Core/NativeSignal.js";
 /**
  * Get a `NativeSignal<number>` that increments every `delta` milliseconds.
  *

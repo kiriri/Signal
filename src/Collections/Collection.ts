@@ -1,4 +1,4 @@
-import { I_Eventable } from "../Core/Subscribable";
+import { I_Eventable } from "../Core/Subscribable.js";
 
 /**
  * Helper type that constrains a collection's event map to (at minimum) `add` and

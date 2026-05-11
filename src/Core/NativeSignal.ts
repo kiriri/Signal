@@ -1,7 +1,7 @@
-import { Flatten } from "src/_decorators/flatten";
-import EventManager, { push_subscribable } from "./_events";
-import type { LinkedList, StatefulSubscribable } from "./Subscribable";
-import Subscribable from "./Subscribable";
+import { Flatten } from "src/_decorators/flatten.js";
+import EventManager, { push_subscribable } from "./_events.js";
+import type { LinkedList, StatefulSubscribable } from "./Subscribable.js";
+import Subscribable from "./Subscribable.js";
 
 /**
  * The simplest stateful subscribable: a single value that can be read with `get()`

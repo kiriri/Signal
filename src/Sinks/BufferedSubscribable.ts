@@ -1,5 +1,5 @@
-import { Subscribable, I_Subscribable, Dirtyable, LinkedList } from "../Core/Subscribable";
-import EventManager from "../Core/_events";
+import { Subscribable, I_Subscribable, Dirtyable, LinkedList } from "../Core/Subscribable.js";
+import EventManager from "../Core/_events.js";
 
 const EMPTY = {} as any;
 

@@ -1,4 +1,4 @@
-import { Subscribable, I_Subscribable } from "../Core/Subscribable";
+import { Subscribable, I_Subscribable } from "../Core/Subscribable.js";
 /**
  * A subscribable that batches values from its source.
  *

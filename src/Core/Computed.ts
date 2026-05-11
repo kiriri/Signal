@@ -1,6 +1,22 @@
-import { Flatten } from "src/_decorators/flatten";
-import EventManager, { push_subscribable } from "./_events";
-import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable";
+import { Flatten } from "src/_decorators/flatten.js";
+import EventManager, { push_subscribable } from "./_events.js";
+import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable.js";
+
+/**
+ * Run this code inside a computed scope without subscribing to what is happening.
+ * @param fn 
+ */
+export function detached(fn:Function)
+{
+    // We don't actually touch the listener array.
+    // It has its own relative offset which will keep working.
+    // But global_listen is the only variable we only assert for when checking if
+    // we need to register our getter with the EventManager.
+    let real_listener_count = EventManager.global_listen ;
+    EventManager.global_listen = 0;
+    fn();
+    EventManager.global_listen = real_listener_count;
+}
 
 /**
  * A signal whose value is *derived* from other signals via a user-provided function.

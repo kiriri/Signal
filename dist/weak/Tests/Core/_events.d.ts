@@ -1,4 +1,4 @@
-import type Subscribable from "./Subscribable";
+import type Subscribable from "./Subscribable.js";
 /**
  * Process-wide coordinator for the dependency graph and microtask-deferred emission.
  *

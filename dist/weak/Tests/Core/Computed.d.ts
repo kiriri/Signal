@@ -1,4 +1,4 @@
-import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable";
+import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable.js";
 /**
  * A signal whose value is *derived* from other signals via a user-provided function.
  *

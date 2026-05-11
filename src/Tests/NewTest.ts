@@ -1,9 +1,9 @@
 // npx tsx --expose-gc ./Tests/NewTest.ts
 
-import { SignalSet, SignalMap, Order, Reducer, I_NativeCollection } from "src/Collections";
-import { StatefulSubscribable, NativeSignal, Computed } from "src/Core";
-import { interval } from "src/Events";
-import { Effect } from "src/Sinks";
+import { SignalSet, SignalMap, Order, Reducer, I_NativeCollection } from "src/Collections/index.js";
+import { StatefulSubscribable, NativeSignal, Computed } from "src/Core/index.js";
+import { interval } from "src/Events/index.js";
+import { Effect } from "src/Sinks/index.js";
 
 
 // Therefore we need to substitute our own global.

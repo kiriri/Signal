@@ -1,6 +1,6 @@
-import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
-import type { I_NativeCollection } from "./Collection";
-import EventManager, { push_subscribable } from "src/Core/_events";
+import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable.js";
+import type { I_NativeCollection } from "./Collection.js";
+import EventManager, { push_subscribable } from "src/Core/_events.js";
 
 export type SetEvents<T> = {
     add: {

@@ -1,2 +1,2 @@
-export * from "./interval";
-export * from "./QuantizedQueue";
+export * from "./interval.js";
+export * from "./QuantizedQueue.js";

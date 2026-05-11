@@ -1,6 +1,6 @@
-export * from "./Core/index";
-export * from "./Collections/index";
-export * from "./Events/index";
-export * from "./Sinks/index";
+export * from "./Core/index.js";
+export * from "./Collections/index.js";
+export * from "./Events/index.js";
+export * from "./Sinks/index.js";
 // export * from "./Integrations/index";
-export * from "./Wrappers/index";
+export * from "./Wrappers/index.js";

@@ -1,4 +1,4 @@
-import { NativeSignal } from "../Core/NativeSignal";
+import { NativeSignal } from "../Core/NativeSignal.js";
 
 /**
  * Process-wide cache: one shared signal per `delta`. WeakRef so the signal can be

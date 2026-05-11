@@ -1,5 +1,5 @@
-import type { LinkedList, StatefulSubscribable } from "./Subscribable";
-import Subscribable from "./Subscribable";
+import type { LinkedList, StatefulSubscribable } from "./Subscribable.js";
+import Subscribable from "./Subscribable.js";
 /**
  * The simplest stateful subscribable: a single value that can be read with `get()`
  * and changed with `set(...)` / `update(...)`.

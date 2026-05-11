@@ -1058,5 +1058,5 @@ function local(key, signal) {
     signal;
 }
 
-export { BufferedSubscribable, Computed, Effect, NativeSignal, Order, OrderNode, QuantizedQueue, Reducer, SignalHeap, SignalMap, SignalSet, Subscribable, count, count_fast, fixed_array, interval, local, reduce, reduce_fast, reduce_generic };
+export { BufferedSubscribable, Computed, Effect, EventManager, NativeSignal, Order, OrderNode, QuantizedQueue, Reducer, SignalHeap, SignalMap, SignalSet, Subscribable, count, count_fast, fixed_array, interval, local, reduce, reduce_fast, reduce_generic };
 //# sourceMappingURL=index.js.map

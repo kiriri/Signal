@@ -1,2 +1,2 @@
-export * from "./BufferedSubscribable";
-export * from "./Effect";
+export * from "./BufferedSubscribable.js";
+export * from "./Effect.js";

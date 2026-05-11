@@ -52,7 +52,7 @@ import {
 } from 'solid-js';
 
 // !!! tsx will import the actual TypeScript sources instead of dist !!!
-import { Computed, NativeSignal } from '../../index';
+import { Computed, NativeSignal } from '../../index.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Statistical helpers

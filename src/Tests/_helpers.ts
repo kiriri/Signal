@@ -1,8 +1,8 @@
 // Shared test utilities. Extracted so individual test files stay focused on
 // scenarios rather than ceremony.
 
-import type { StatefulSubscribable } from "src/Core";
-import type { SignalSet, SignalMap } from "src/Collections";
+import type { StatefulSubscribable } from "src/Core/index.js";
+import type { SignalSet, SignalMap } from "src/Collections/index.js";
 
 /**
  * Items that have been finalized (i.e. garbage collected) since the last reset.

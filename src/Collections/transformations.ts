@@ -1,7 +1,7 @@
-import { NativeSignal } from "../Core/NativeSignal";
-import { I_NativeCollection, ReqColTypes } from "./Collection";
-import { Computed } from "../Core/Computed";
-import { EventRef, I_GettableSubscribable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable";
+import { NativeSignal } from "../Core/NativeSignal.js";
+import { I_NativeCollection, ReqColTypes } from "./Collection.js";
+import { Computed } from "../Core/Computed.js";
+import { EventRef, I_GettableSubscribable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable.js";
 
 // TODO :
 // - Replace listener function with dependency.
