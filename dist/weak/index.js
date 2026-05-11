@@ -113,6 +113,11 @@ class Subscribable {
     }
 }
 
+function detached(fn) {
+    let real_listener_count = EventManager.global_listen;
+    EventManager.global_listen = 0, fn(), EventManager.global_listen = real_listener_count;
+}
+
 class Computed {
     subscribed_to=[];
     fn;
@@ -215,15 +220,15 @@ class Computed {
             next: previous_first_item,
             value: new WeakRef(fn)
         };
-        void 0 !== previous_first_item && (previous_first_item.prev = new_item);
+        return void 0 !== previous_first_item && (previous_first_item.prev = new_item), 
+        new_item;
     }
     depend(subscribable) {
         const previous_first_item = this.dependants, new_item = this.dependants = {
             next: previous_first_item,
             value: new WeakRef(subscribable)
         };
-        return void 0 !== previous_first_item && (previous_first_item.prev = new_item), 
-        new_item;
+        void 0 !== previous_first_item && (previous_first_item.prev = new_item);
     }
     unsubscribe(reference) {
         return void 0 !== reference.next && (reference.next.prev = reference.prev), void 0 !== reference.prev ? reference.prev.next = reference.next : this.dependants === reference ? this.dependants = this.dependants.next : this.subscribers === reference && (this.subscribers = this.subscribers.next), 
@@ -1058,5 +1063,5 @@ function local(key, signal) {
     signal;
 }
 
-export { BufferedSubscribable, Computed, Effect, EventManager, NativeSignal, Order, OrderNode, QuantizedQueue, Reducer, SignalHeap, SignalMap, SignalSet, Subscribable, count, count_fast, fixed_array, interval, local, reduce, reduce_fast, reduce_generic };
+export { BufferedSubscribable, Computed, Effect, EventManager, NativeSignal, Order, OrderNode, QuantizedQueue, Reducer, SignalHeap, SignalMap, SignalSet, Subscribable, count, count_fast, detached, fixed_array, interval, local, reduce, reduce_fast, reduce_generic };
 //# sourceMappingURL=index.js.map

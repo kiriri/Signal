@@ -1,5 +1,10 @@
 import { Dirtyable, I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "./Subscribable.js";
 /**
+ * Run this code inside a computed scope without subscribing to what is happening.
+ * @param fn
+ */
+export declare function detached(fn: Function): void;
+/**
  * A signal whose value is *derived* from other signals via a user-provided function.
  *
  * **Auto-tracked dependencies.** When the function runs, every signal whose `get()` is
