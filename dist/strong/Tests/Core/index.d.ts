@@ -6,4 +6,4 @@ export { type Dirtyable, type I_Subscribable, type StatefulSubscribable, Subscri
  * Run this code inside a computed scope without subscribing to what is happening.
  * @param fn
  */
-export declare function detached(fn: Function): void;
+export declare function detached<T>(fn: () => T): T;

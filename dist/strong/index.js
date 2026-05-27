@@ -334,7 +334,9 @@ class NativeSignal {
 
 function detached(fn) {
     let real_listener_count = EventManager.global_listen;
-    EventManager.global_listen = 0, fn(), EventManager.global_listen = real_listener_count;
+    EventManager.global_listen = 0;
+    const res = fn();
+    return EventManager.global_listen = real_listener_count, res;
 }
 
 class OrderNode {

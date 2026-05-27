@@ -11,6 +11,8 @@ const numSignals = 1_000_000;
 const numSubscribersPerSignal = 1;
 const numIterations = 1_000_000;
 
+global.$USE_WEAK_REFS$  = true;
+
 async function stressTest() {
     const signals: NativeSignal<number>[] = [];
 
