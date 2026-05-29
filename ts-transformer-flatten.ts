@@ -141,65 +141,64 @@ export function flattenClassesTransformer(program: ts.Program): ts.TransformerFa
             let conflictMap = find_method_conflicts(cls, baseDecl);
 
             // Process base members
-            // Process base members
-const baseMembers = baseDecl.members
-    .filter(m => !ts.isConstructorDeclaration(m))
-    .map(member =>
-    {
-        // Hoisted here so it applies to both method bodies and property initializers.
-        function visit(node: ts.Node): ts.Node
-        {
-            const text = node.getText().trim();
-            if (ts.isStringLiteral(node))
-                return ts.factory.createStringLiteral(text, false);
-            if (ts.isNumericLiteral(node))
-                return ts.factory.createNumericLiteral(text);
-            if (ts.isBigIntLiteral(node))
-                return ts.factory.createBigIntLiteral(text);
-            if (node.kind === ts.SyntaxKind.TrueKeyword)
-                return ts.factory.createTrue();
-            if (node.kind === ts.SyntaxKind.FalseKeyword)
-                return ts.factory.createFalse();
-            if (node.kind === ts.SyntaxKind.NullKeyword)
-                return ts.factory.createNull();
-            if (ts.isNoSubstitutionTemplateLiteral(node))
-                return ts.factory.createNoSubstitutionTemplateLiteral(text, node.rawText);
-            if (ts.isRegularExpressionLiteral(node))
-                return ts.factory.createRegularExpressionLiteral(text);
-            return ts.visitEachChild(node, child => visit(child), context);
-        }
+            const baseMembers = baseDecl.members
+                .filter(m => !ts.isConstructorDeclaration(m))
+                .map(member =>
+                {
+                    // Hoisted here so it applies to both method bodies and property initializers.
+                    function visit(node: ts.Node): ts.Node
+                    {
+                        const text = node.getText().trim();
+                        if (ts.isStringLiteral(node))
+                            return ts.factory.createStringLiteral(text.slice(1,-1), false);
+                        if (ts.isNumericLiteral(node))
+                            return ts.factory.createNumericLiteral(text);
+                        if (ts.isBigIntLiteral(node))
+                            return ts.factory.createBigIntLiteral(text);
+                        if (node.kind === ts.SyntaxKind.TrueKeyword)
+                            return ts.factory.createTrue();
+                        if (node.kind === ts.SyntaxKind.FalseKeyword)
+                            return ts.factory.createFalse();
+                        if (node.kind === ts.SyntaxKind.NullKeyword)
+                            return ts.factory.createNull();
+                        if (ts.isNoSubstitutionTemplateLiteral(node))
+                            return ts.factory.createNoSubstitutionTemplateLiteral(text, node.rawText);
+                        if (ts.isRegularExpressionLiteral(node))
+                            return ts.factory.createRegularExpressionLiteral(text);
+                        return ts.visitEachChild(node, child => visit(child), context);
+                    }
 
-        if (ts.isMethodDeclaration(member) && member.body && member.name && ts.isIdentifier(member.name))
-        {
-            let method = member as ts.MethodDeclaration;
-            let methodName = member.name.text;
+                    if (ts.isMethodDeclaration(member) && member.body && member.name && ts.isIdentifier(member.name))
+                    {
+                        let method = member as ts.MethodDeclaration;
+                        let methodName = member.name.text;
 
-            if (conflictMap.has(methodName))
-                methodName = conflictMap.get(methodName)!;
+                        if (conflictMap.has(methodName))
+                            methodName = conflictMap.get(methodName)!;
 
-            let body = method.body;
-            if (body)
-            {
-                const _statements = body.statements.map(s => visit(s) as ts.Statement);
-                body = ts.factory.createBlock(_statements);
-            }
+                        let body = method.body;
+                        if (body)
+                        {
+                            const _statements = body.statements.map(s => visit(s) as ts.Statement);
+                            body = ts.factory.createBlock(_statements);
+                        }
 
-            return ts.factory.createMethodDeclaration(
-                method.modifiers,
-                method.asteriskToken,
-                methodName,
-                method.questionToken,
-                method.typeParameters,
-                method.parameters,
-                method.type,
-                body
-            );
-        }
+                        return ts.factory.createMethodDeclaration(
+                            method.modifiers,
+                            method.asteriskToken,
+                            methodName,
+                            method.questionToken,
+                            method.typeParameters,
+                            method.parameters,
+                            method.type,
+                            body
+                        );
+                    }
 
-        // For properties, getters, setters, etc. — visit through children so
-        // initializers like `version = 0` get their literals recreated too.
-        return ts.visitEachChild(member, child => visit(child), context) as ts.ClassElement;
-    }).filter(m => !ts.isConstructorDeclaration(m));
+                    // For properties, getters, setters, etc. — visit through children so
+                    // initializers like `version = 0` get their literals recreated too.
+                    return ts.visitEachChild(member, child => visit(child), context) as ts.ClassElement;
+                }).filter(m => !ts.isConstructorDeclaration(m));
 
             // Process derived members to update super calls
             const updatedDerivedMembers = cls.members.map(member =>

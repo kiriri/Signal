@@ -175,14 +175,14 @@ class Computed {
     __base_dirty(source, ref) {
         let dependant = this.dependants;
         for (;void 0 !== dependant; ) {
-            const deref = dependant.value['"deref"']();
+            const deref = dependant.value.deref();
             void 0 === deref ? this.unsubscribe(dependant) : deref.dirty(this, dependant), dependant = dependant.next;
         }
     }
     emit(value) {
         let subscriber = this.subscribers;
         for (;void 0 !== subscriber; ) {
-            const deref = subscriber.value['"deref"']();
+            const deref = subscriber.value.deref();
             void 0 === deref ? this.unsubscribe(subscriber) : deref(this, value, subscriber), 
             subscriber = subscriber.next;
         }
@@ -242,14 +242,14 @@ class NativeSignal {
     __base_dirty(source, ref) {
         let dependant = this.dependants;
         for (;void 0 !== dependant; ) {
-            const deref = dependant.value['"deref"']();
+            const deref = dependant.value.deref();
             void 0 === deref ? this.unsubscribe(dependant) : deref.dirty(this, dependant), dependant = dependant.next;
         }
     }
     emit(value) {
         let subscriber = this.subscribers;
         for (;void 0 !== subscriber; ) {
-            const deref = subscriber.value['"deref"']();
+            const deref = subscriber.value.deref();
             void 0 === deref ? this.unsubscribe(subscriber) : deref(this, value, subscriber), 
             subscriber = subscriber.next;
         }
