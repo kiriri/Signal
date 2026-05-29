@@ -141,76 +141,65 @@ export function flattenClassesTransformer(program: ts.Program): ts.TransformerFa
             let conflictMap = find_method_conflicts(cls, baseDecl);
 
             // Process base members
-            const baseMembers = baseDecl.members
-                .filter(m => !ts.isConstructorDeclaration(m))
-                .map(member =>
-                {
-                    if (ts.isMethodDeclaration(member) && member.body && member.name && ts.isIdentifier(member.name))
-                    {
-                        let method = member as ts.MethodDeclaration;
-                        let methodName = member.name.text;
+            // Process base members
+const baseMembers = baseDecl.members
+    .filter(m => !ts.isConstructorDeclaration(m))
+    .map(member =>
+    {
+        // Hoisted here so it applies to both method bodies and property initializers.
+        function visit(node: ts.Node): ts.Node
+        {
+            const text = node.getText().trim();
+            if (ts.isStringLiteral(node))
+                return ts.factory.createStringLiteral(text, false);
+            if (ts.isNumericLiteral(node))
+                return ts.factory.createNumericLiteral(text);
+            if (ts.isBigIntLiteral(node))
+                return ts.factory.createBigIntLiteral(text);
+            if (node.kind === ts.SyntaxKind.TrueKeyword)
+                return ts.factory.createTrue();
+            if (node.kind === ts.SyntaxKind.FalseKeyword)
+                return ts.factory.createFalse();
+            if (node.kind === ts.SyntaxKind.NullKeyword)
+                return ts.factory.createNull();
+            if (ts.isNoSubstitutionTemplateLiteral(node))
+                return ts.factory.createNoSubstitutionTemplateLiteral(text, node.rawText);
+            if (ts.isRegularExpressionLiteral(node))
+                return ts.factory.createRegularExpressionLiteral(text);
+            return ts.visitEachChild(node, child => visit(child), context);
+        }
 
-                        if (conflictMap.has(methodName)) 
-                        {
-                            // Rename conflicting base methods
-                            methodName = conflictMap.get(methodName)!;
-                        }
+        if (ts.isMethodDeclaration(member) && member.body && member.name && ts.isIdentifier(member.name))
+        {
+            let method = member as ts.MethodDeclaration;
+            let methodName = member.name.text;
 
-                        let body = method.body;
+            if (conflictMap.has(methodName))
+                methodName = conflictMap.get(methodName)!;
 
-                        if (body)
-                        {
-                            let statements = body.statements;
+            let body = method.body;
+            if (body)
+            {
+                const _statements = body.statements.map(s => visit(s) as ts.Statement);
+                body = ts.factory.createBlock(_statements);
+            }
 
-                            body = ts.factory.createBlock(statements);
-                            let _statements = statements.map(statement =>
-                            {
-                                // Due to what I assume is a bug string literals disappear unless they are recreated from scratch.
-                                function visit(node: ts.Node)
-                                {
-                                    if (node.kind === ts.SyntaxKind["StringLiteral"])
-                                    {
-                                        console.log("Replacing ", node.getText());
+            return ts.factory.createMethodDeclaration(
+                method.modifiers,
+                method.asteriskToken,
+                methodName,
+                method.questionToken,
+                method.typeParameters,
+                method.parameters,
+                method.type,
+                body
+            );
+        }
 
-                                        // TODO
-                                        // ts.setSourceMapRange(result, v);
-                                        // ts.setTextRange(result,v);
-
-                                        return ts.factory.createStringLiteral(
-                                            node.getText().slice(1, -1),
-                                            false
-                                        );
-                                    }
-
-                                    return ts.visitEachChild(
-                                        node,
-                                        child => visit(child),
-                                        context
-                                    );
-                                }
-
-                                return visit(statement);
-                            }
-
-                            );
-                            body = ts.factory.createBlock(_statements);
-                        }
-
-
-
-                        return ts.factory.createMethodDeclaration(
-                            method.modifiers,
-                            method.asteriskToken,
-                            methodName,
-                            method.questionToken,
-                            method.typeParameters,
-                            method.parameters,
-                            method.type,
-                            body
-                        );
-                    }
-                    return member;
-                }).filter(m => !ts.isConstructorDeclaration(m));
+        // For properties, getters, setters, etc. — visit through children so
+        // initializers like `version = 0` get their literals recreated too.
+        return ts.visitEachChild(member, child => visit(child), context) as ts.ClassElement;
+    }).filter(m => !ts.isConstructorDeclaration(m));
 
             // Process derived members to update super calls
             const updatedDerivedMembers = cls.members.map(member =>
