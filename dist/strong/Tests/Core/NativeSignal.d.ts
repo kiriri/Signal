@@ -39,12 +39,6 @@ export declare class NativeSignal<T> extends Subscribable<T> implements Stateful
      */
     get(): T;
     /**
-     * Read the current value WITHOUT registering as a dependency. Used by `Computed`
-     * during its validation walk to compare last-seen against current. Cheap: one
-     * property access, monomorphic call site.
-     */
-    peek(): T;
-    /**
      * Set a new value. If the new value is `===` the current one, this is a no-op
      * (no dirty propagation, no emission). Otherwise dependants are marked dirty
      * synchronously and an emission is queued for the next microtask.

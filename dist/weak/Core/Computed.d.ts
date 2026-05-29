@@ -103,14 +103,6 @@ export declare class Computed<T, CONTEXT = any> extends Subscribable<T> implemen
      */
     get(): T;
     /**
-     * Untracked read of the current cached value. Used by an enclosing Computed's
-     * `_get()` to snapshot dep values into `subscribed_to[i].last` without
-     * re-triggering dependency tracking. The value may be stale if `_dirty !== false`,
-     * but `_get()` only calls this immediately after the dep was just read via its
-     * own `get()`, so the cache is fresh at that moment.
-     */
-    peek(): T;
-    /**
      * Walk `subscribed_to` and check whether any dep's current value differs from
      * the value we recorded the last time we evaluated. Returns `true` as soon as a
      * change is found (early-out). Returns `false` only if every dep matches.

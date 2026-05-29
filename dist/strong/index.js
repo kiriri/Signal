@@ -74,7 +74,7 @@ class Computed {
     _value;
     _eager;
     on_emit(context) {
-        if (context.version >= 0) return;
+        if (context.version > 0) return;
         const prev = context._value;
         context.get(), prev !== context._value && context.emit(context._value);
     }
@@ -86,15 +86,12 @@ class Computed {
         return push_subscribable(this), this.version > 0 ? this._value : this.version < 0 && !this._validate() ? (this.version = -this.version, 
         this._value) : this._get();
     }
-    peek() {
-        return this._value;
-    }
     _validate() {
         const subscribed_to = this.subscribed_to, len = subscribed_to.length, saved_listen = EventManager.global_listen;
         EventManager.global_listen = 0;
         for (let i = 0; i < len; i++) {
             const entry = subscribed_to[i];
-            if (entry.signal.get(), entry.signal.version !== entry.last) return EventManager.global_listen = saved_listen, 
+            if (entry.signal.version !== entry.last) return EventManager.global_listen = saved_listen, 
             !0;
         }
         return EventManager.global_listen = saved_listen, !1;
@@ -103,7 +100,7 @@ class Computed {
         return 0 == this.version && this._get(), this.__base_subscribe(fn);
     }
     _get() {
-        this.version = 1 - this.version, EventManager.global_listen++;
+        EventManager.global_listen++;
         let value, global_listener_index = EventManager.global_listener_length;
         try {
             value = this.fn(this.context);
@@ -139,7 +136,7 @@ class Computed {
             }
             length < l1 && (subscribed_to.length = length);
         }
-        return this._value = value, EventManager.global_listener_length = global_listener_index, 
+        return this._value = value, this.version = 1 - this.version, EventManager.global_listener_length = global_listener_index, 
         value;
     }
     destroy() {
@@ -196,9 +193,6 @@ class NativeSignal {
     get() {
         return push_subscribable(this), this._value;
     }
-    peek() {
-        return this._value;
-    }
     set(value) {
         value !== this._value && (this._value = value, this.dirty(this, void 0, value));
     }
@@ -207,12 +201,12 @@ class NativeSignal {
         value !== this._value && (this._value = value, this.dirty(this, void 0, value));
     }
     dirty(source, ref, value) {
-        return this.version < 0 || this.version > 0 && (void 0 !== this.subscribers && (this.version = -this.version, 
-        EventManager.register_async_emit(this.on_emit, this)), this.__base_dirty(source, ref)), 
-        this;
+        return this.version < 0 || (void 0 !== this.subscribers ? (this.version = -this.version - 1, 
+        EventManager.register_async_emit(this.on_emit, this), this.__base_dirty(source, ref)) : this.dependants && (this.version++, 
+        this.__base_dirty(source, ref))), this;
     }
     on_emit(context) {
-        context.version = 1 - context.version, context.emit(context._value);
+        context.version = -context.version, context.emit(context._value);
     }
     subscribers;
     dependants;

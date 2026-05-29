@@ -101,7 +101,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
      */
     on_emit(context: Computed<T, CONTEXT>)
     {
-        if (context.version >= 0)
+        if (context.version > 0)
             return;
 
         const prev = context._value;
@@ -130,7 +130,9 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
     {
         // Already maybe dirty.
         if (this.version < 0)
+        {
             return;
+        }
         this.version = -this.version;
 
         super.dirty(source, ref);
@@ -173,18 +175,6 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
     }
 
     /**
-     * Untracked read of the current cached value. Used by an enclosing Computed's
-     * `_get()` to snapshot dep values into `subscribed_to[i].last` without
-     * re-triggering dependency tracking. The value may be stale if `_dirty !== false`,
-     * but `_get()` only calls this immediately after the dep was just read via its
-     * own `get()`, so the cache is fresh at that moment.
-     */
-    peek(): T
-    {
-        return this._value;
-    }
-
-    /**
      * Walk `subscribed_to` and check whether any dep's current value differs from
      * the value we recorded the last time we evaluated. Returns `true` as soon as a
      * change is found (early-out). Returns `false` only if every dep matches.
@@ -210,14 +200,16 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
         const saved_listen = EventManager.global_listen;
         EventManager.global_listen = 0;
 
+
         for (let i = 0; i < len; i++)
         {
             const entry = subscribed_to[i];
             // For "maybe"-state Computeds, get() resolves recursively. For
             // NativeSignals, get() is a single field read (push_subscribable is a
             // no-op when global_listen === 0).
-            const current = (entry.signal as any).get();
-            if (entry.signal.version !== entry.last)
+            const current = entry.signal.version;
+
+            if (current !== entry.last)
             {
                 EventManager.global_listen = saved_listen;
                 return true;
@@ -258,7 +250,6 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
      */
     _get()
     {
-        this.version = (-this.version) + 1;
 
         EventManager.global_listen++;
         let global_listener_index = EventManager.global_listener_length;
@@ -344,6 +335,9 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
         }
 
         this._value = value;
+
+        this.version = (-this.version) + 1;
+
         // Restore global listeners to their previous length (internal length should not contract)
         EventManager.global_listener_length = global_listener_index;
 

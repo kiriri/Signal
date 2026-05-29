@@ -56,16 +56,6 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
     }
 
     /**
-     * Read the current value WITHOUT registering as a dependency. Used by `Computed`
-     * during its validation walk to compare last-seen against current. Cheap: one
-     * property access, monomorphic call site.
-     */
-    peek(): T
-    {
-        return this._value;
-    }
-
-    /**
      * Set a new value. If the new value is `===` the current one, this is a no-op
      * (no dirty propagation, no emission). Otherwise dependants are marked dirty
      * synchronously and an emission is queued for the next microtask.
@@ -108,17 +98,18 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
 
 
         // Has subscribers?
-        if (this.version > 0)
+        if (this.subscribers !== undefined)
         {
-            if (this.subscribers !== undefined)
-            {
-                this.version = -this.version;
-                EventManager.register_async_emit(this.on_emit, this);
-            }
-
+            this.version = -this.version - 1;
+            EventManager.register_async_emit(this.on_emit, this);
             super.dirty(source, ref);
         }
-            
+        else if(this.dependants)
+        {
+            this.version++;
+            super.dirty(source, ref);
+        }
+
 
         return this;
     }
@@ -131,7 +122,7 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
      */
     on_emit(context: this)
     {
-        context.version = (-context.version) + 1;
+        context.version = -context.version; // flip back to positives.
         context.emit(context._value);
     }
 }

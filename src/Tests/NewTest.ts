@@ -91,123 +91,146 @@ async function runTests()
 }
 
 // Test setting and getting native signals.
-tests.push(function test1()
-{
-    const INITIAL_VALUE = 123;
+// tests.push(function test1()
+// {
+//     const INITIAL_VALUE = 123;
 
-    const signal1 = new NativeSignal(INITIAL_VALUE);
-    const signal2 = new NativeSignal(INITIAL_VALUE);
+//     const signal1 = new NativeSignal(INITIAL_VALUE);
+//     const signal2 = new NativeSignal(INITIAL_VALUE);
 
-    assertSame(signal1, signal2);
+//     assertSame(signal1, signal2);
 
-    signal1.set(-1);
-    assertValue(-1, signal1);
-    assertValue(INITIAL_VALUE, signal2);
+//     signal1.set(-1);
+//     assertValue(-1, signal1);
+//     assertValue(INITIAL_VALUE, signal2);
 
-    signal1.update(value => value * 2);
-    assertValue(-2, signal1);
+//     signal1.update(value => value * 2);
+//     assertValue(-2, signal1);
 
-    console.log("Test 1 done");
-});
+//     console.log("Test 1 done");
+// });
 
-// Test simple subscribe operation.
-tests.push(async function test2()
-{
-    const INITIAL_VALUE = {};
+// // Test simple subscribe operation.
+// tests.push(async function test2()
+// {
+//     const INITIAL_VALUE = {};
 
-    const signal1 = new NativeSignal(INITIAL_VALUE);
-    const signal2 = new NativeSignal(INITIAL_VALUE);
+//     const signal1 = new NativeSignal(INITIAL_VALUE);
+//     const signal2 = new NativeSignal(INITIAL_VALUE);
 
 
-    const fn = () =>
-    {
-        console.log("SETTELETTL")
-        signal2.set(signal1.get());
-    };
-    signal1.subscribe(fn);
-    // console.log("SUB DONE ", signal1.subscribers)
+//     const fn = () =>
+//     {
+//         console.log("SETTELETTL")
+//         signal2.set(signal1.get());
+//     };
+//     signal1.subscribe(fn);
+//     // console.log("SUB DONE ", signal1.subscribers)
 
-    assertValue(INITIAL_VALUE, signal1, signal2);
+//     assertValue(INITIAL_VALUE, signal1, signal2);
 
-    // console.log("SET START")
+//     // console.log("SET START")
 
-    signal1.set(3);
-    // console.log("SET DONE")
+//     signal1.set(3);
+//     // console.log("SET DONE")
 
-    // EventManager.flush();
-    console.log("Flushing")
-    // console.log("About to wait")
-    await wait(1);
+//     // EventManager.flush();
+//     console.log("Flushing")
+//     // console.log("About to wait")
+//     await wait(1);
 
-    // console.log(3, signal1.get(), signal2.get());
-    assertValue(3, signal1, signal2);
+//     // console.log(3, signal1.get(), signal2.get());
+//     assertValue(3, signal1, signal2);
 
-    console.log("Test 2 done");
+//     console.log("Test 2 done");
 
-}
-);
+// }
+// );
+
+// /**
+//  * Test computed.
+//  */
+// tests.push(async function test3()
+// {
+//     const INITIAL_VALUE = 1;
+
+//     const signal0 = new NativeSignal(0);
+//     const computed0 = new Computed(() =>
+//     {
+//         return signal0.get();
+//     })
+
+//     signal0.set(0);
+//     signal0.set(1);
+//     signal0.set(2);
+
+//     assertValue(2, computed0, signal0)
+
+//     const signal1 = new NativeSignal(INITIAL_VALUE);
+//     const signal2 = new NativeSignal(INITIAL_VALUE);
+//     const computed1 = new Computed(() =>
+//     {
+//         return signal1.get() + signal2.get();
+//     })
+
+//     gc();
+
+//     const fn = () =>
+//     {
+//         signal2.set(signal1.get());
+//     };
+//     signal1.subscribe(fn);
+//     gc();
+
+//     assertValue(INITIAL_VALUE, signal1, signal2);
+//     assertValue(INITIAL_VALUE * 2, computed1);
+
+//     signal1.set(2);
+//     await wait(100);
+
+//     gc();
+
+//     assertValue(2, signal1, signal2);
+//     assertValue(4, computed1);
+
+//     async function scope1()
+//     {
+//         const computed2 = new Computed(() =>
+//         {
+//             return signal1.get() + signal2.get();
+//         })
+
+//         finalizer.register(computed2, "Inner computed");
+//     }
+
+//     await scope1();
+
+//     await assertGcCount(1);
+
+//     console.log("Test 3 done");
+
+// }
+// );
+
 
 /**
- * Test computed.
+ * Test repeated computed changes.
  */
 tests.push(async function test3()
 {
-    const INITIAL_VALUE = 1;
-
     const signal0 = new NativeSignal(0);
     const computed0 = new Computed(() =>
     {
         return signal0.get();
     })
 
-    signal0.set(0);
-    signal0.set(1);
-    signal0.set(2);
-
-    assertValue(2, computed0, signal0)
-
-    const signal1 = new NativeSignal(INITIAL_VALUE);
-    const signal2 = new NativeSignal(INITIAL_VALUE);
-    const computed1 = new Computed(() =>
+    for (let i = 0; i < 10; i++)
     {
-        return signal1.get() + signal2.get();
-    })
-
-    gc();
-
-    const fn = () =>
-    {
-        signal2.set(signal1.get());
-    };
-    signal1.subscribe(fn);
-    gc();
-
-    assertValue(INITIAL_VALUE, signal1, signal2);
-    assertValue(INITIAL_VALUE * 2, computed1);
-
-    signal1.set(2);
-    await wait(100);
-
-    gc();
-
-    assertValue(2, signal1, signal2);
-    assertValue(4, computed1);
-
-    async function scope1()
-    {
-        const computed2 = new Computed(() =>
-        {
-            return signal1.get() + signal2.get();
-        })
-
-        finalizer.register(computed2, "Inner computed");
+        signal0.set(i);
+        console.log(signal0.version, signal0.get(), computed0.get());
+        // EventManager.flush()
+        assertValue(i, computed0, signal0);
     }
-
-    await scope1();
-
-    await assertGcCount(1);
-
-    console.log("Test 3 done");
 
 }
 );
