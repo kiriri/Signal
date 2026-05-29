@@ -27,7 +27,7 @@ export default class EventManager
      * computed evaluation. While set, every `get()` on a stateful subscribable should
      * push itself here so the enclosing computed can wire up its dependencies.
      */
-    static readonly global_listeners: Subscribable<any, any>[] = [undefined];
+    static global_listeners: Subscribable<any, any>[] = [undefined];
     static global_listener_length = 0; // virtual length, we want to never contract global_listeners.
     static real_length = 1; // virtual length, we want to never contract global_listeners.
     static global_listen = 0; // how many levels down a computed or effect we are. > 0 means we must add to global_listeners. 0 means we can skip it.
@@ -86,7 +86,7 @@ export function push_subscribable(sub: Subscribable<any, any>)
     {
         if (EventManager.real_length === EventManager.global_listener_length)
         {
-            EventManager.global_listeners.concat(new Array(EventManager.real_length))
+            EventManager.global_listeners = EventManager.global_listeners.concat(new Array(EventManager.real_length))
             EventManager.real_length *= 2;
         }
         EventManager.global_listeners[EventManager.global_listener_length++] = sub;

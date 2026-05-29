@@ -21,7 +21,7 @@ class EventManager {
 }
 
 function push_subscribable(sub) {
-    EventManager.global_listen > 0 && (EventManager.real_length === EventManager.global_listener_length && (EventManager.global_listeners.concat(new Array(EventManager.real_length)), 
+    EventManager.global_listen > 0 && (EventManager.real_length === EventManager.global_listener_length && (EventManager.global_listeners = EventManager.global_listeners.concat(new Array(EventManager.real_length)), 
     EventManager.real_length *= 2), EventManager.global_listeners[EventManager.global_listener_length++] = sub);
 }
 

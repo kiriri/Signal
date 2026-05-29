@@ -26,7 +26,7 @@ export default class EventManager {
      * computed evaluation. While set, every `get()` on a stateful subscribable should
      * push itself here so the enclosing computed can wire up its dependencies.
      */
-    static readonly global_listeners: Subscribable<any, any>[];
+    static global_listeners: Subscribable<any, any>[];
     static global_listener_length: number;
     static real_length: number;
     static global_listen: number;
