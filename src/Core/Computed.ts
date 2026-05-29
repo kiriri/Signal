@@ -39,7 +39,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
      * whether any dependency actually changed value (vs merely propagating a
      * "maybe-stale" flag from upstream).
      */
-    subscribed_to: { signal: Subscribable<any>, ref: any, last: any }[] = [];
+    subscribed_to: { signal: Subscribable<any>, ref: any, last: number }[] = [];
 
     /** The user-provided function. The dependencies are captured by closure inside `fn`. */
     readonly fn: (self: CONTEXT) => T;
@@ -49,18 +49,18 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
 
     /**
      * Dirty flag with three states:
-     *   - `"first"` — never run yet, will subscribe to dependencies on first `get`/`subscribe`.
-     *   - `"maybe"` — upstream reported a change, but we have not verified whether any
+     *   - -1 — never run yet, will subscribe to dependencies on first `get`/`subscribe`.
+     *   - -N — upstream reported a change, but we have not verified whether any
      *                 dependency's value actually differs from what we last saw. Validation
      *                 happens lazily in `get()` via `_validate()`. This is the key state
      *                 that lets us avoid recomputing (and re-emitting) when an upstream
      *                 "change" turns out to produce the same value downstream.
-     *   - `false`  — `_cache` is current.
+     *   - +N  — `_cache` is current.
      */
-    _dirty: false | "first" | "maybe" = "first";
+    // version: number = -1;
 
     /** Last computed value. Defined after the first evaluation. */
-    _cache!: T;
+    _value!: T;
 
     /** Whether this computed re-runs whenever a dependency changes (vs lazily on `get`). 
      * An eager computed behaves more like an 'Effect' .
@@ -84,12 +84,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
         if (eager)
         {
             // Run immediately to wire up dependencies.
-            this._cache = this._get();
-        }
-        else
-        {
-            // Don't subscribe until someone shows interest by calling get() or subscribe().
-            this._dirty = "first";
+            this._value = this._get();
         }
     }
 
@@ -106,16 +101,16 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
      */
     on_emit(context: Computed<T, CONTEXT>)
     {
-        if (context._dirty === false)
+        if (context.version >= 0)
             return;
 
-        const prev = context._cache;
+        const prev = context._value;
         context.get();
         // `===` matches NativeSignal.set's equality semantics. NaN-in / NaN-out
         // produces an emit either way, consistent with NativeSignal treating any
         // set(NaN) as a change.
-        if (prev !== context._cache)
-            context.emit(context._cache);
+        if (prev !== context._value)
+            context.emit(context._value);
     }
 
     /**
@@ -133,9 +128,10 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
      */
     override dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>)
     {
-        if (this._dirty)
+        // Already maybe dirty.
+        if (this.version < 0)
             return;
-        this._dirty = "maybe";
+        this.version = -this.version;
 
         super.dirty(source, ref);
 
@@ -163,14 +159,14 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
         // register ourselves with the enclosing tracker.
         push_subscribable(this);
 
-        if (this._dirty === false)
-            return this._cache;
+        if (this.version > 0) // not dirty
+            return this._value;
 
-        if (this._dirty === "maybe" && !this._validate())
+        else if (this.version < 0 && !this._validate())
         {
             // No dep actually changed — cache is still good. Clear the flag.
-            this._dirty = false;
-            return this._cache;
+            this.version = -this.version;
+            return this._value;
         }
 
         return this._get();
@@ -185,7 +181,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
      */
     peek(): T
     {
-        return this._cache;
+        return this._value;
     }
 
     /**
@@ -221,7 +217,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
             // NativeSignals, get() is a single field read (push_subscribable is a
             // no-op when global_listen === 0).
             const current = (entry.signal as any).get();
-            if (current !== entry.last)
+            if (entry.signal.version !== entry.last)
             {
                 EventManager.global_listen = saved_listen;
                 return true;
@@ -236,7 +232,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
         fn: (source: this, value: T, ref: LinkedList<any>) => any | void
     ): LinkedList<WEAK_REF<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>
     {
-        if (this._dirty === "first")
+        if (this.version == 0)
         {
             // First subscriber forces an initial evaluation so that the subscription
             // is meaningful (we now know what to listen to).
@@ -262,7 +258,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
      */
     _get()
     {
-        this._dirty = false;
+        this.version = (-this.version) + 1;
 
         EventManager.global_listen++;
         let global_listener_index = EventManager.global_listener_length;
@@ -271,7 +267,13 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
         try
         {
             value = this.fn(this.context);
-        } 
+        }
+        catch (e)
+        {
+            // Restore global listeners to their previous length (internal length should not contract)
+            EventManager.global_listener_length = global_listener_index;
+            throw e;
+        }
         finally
         {
             // Restore the parent tracker for any enclosing computed.
@@ -292,7 +294,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
             if (fresh_dependency_length === 1)
             {
                 const entry = subscribed_to[0];
-                entry.last = (entry.signal as any).peek();
+                entry.last = entry.signal.version;
                 if ($USE_WEAK_REFS$)
                     global_listeners[global_listener_index] = undefined;
             }
@@ -315,10 +317,10 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
                 const sub = global_listeners[i];
 
                 // Make sure to release all the unused potential listeners so GC can kick in.
-                if($USE_WEAK_REFS$)
+                if ($USE_WEAK_REFS$)
                     global_listeners[i] = undefined;
 
-                const last = (sub as any).peek();
+                const last = sub.version;
 
                 if (i < l1)
                 {
@@ -341,7 +343,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
 
         }
 
-        this._cache = value;
+        this._value = value;
         // Restore global listeners to their previous length (internal length should not contract)
         EventManager.global_listener_length = global_listener_index;
 
@@ -446,7 +448,7 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
      */
     destroy()
     {
-        this._dirty = false;
+        this.version = 0;
         for (const { signal, ref } of this.subscribed_to)
         {
             signal.unsubscribe(ref);

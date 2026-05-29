@@ -32,12 +32,6 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
      */
     _value: T;
 
-    /**
-     * `true` when an emission has already been scheduled for the next microtask.
-     * Prevents duplicate microtask registrations when `set(...)` is called many times
-     * in a tick.
-     */
-    queued?: boolean;
 
     /**
      * Creates a new Signal with an initial value.
@@ -109,16 +103,22 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
     {
         // If it's queued for emit(), then it stands to reason that it has already
         // propagated dirty as well.
-        if (this.queued)
+        if (this.version < 0)
             return this;
 
-        if (this.subscribers !== undefined)
-        {
-            this.queued = true;
-            EventManager.register_async_emit(this.on_emit, this);
-        }
 
-        super.dirty(source, ref);
+        // Has subscribers?
+        if (this.version > 0)
+        {
+            if (this.subscribers !== undefined)
+            {
+                this.version = -this.version;
+                EventManager.register_async_emit(this.on_emit, this);
+            }
+
+            super.dirty(source, ref);
+        }
+            
 
         return this;
     }
@@ -131,7 +131,7 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
      */
     on_emit(context: this)
     {
-        context.queued = false;
+        context.version = (-context.version) + 1;
         context.emit(context._value);
     }
 }

@@ -131,6 +131,15 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
      */
     dependants: LinkedList<WEAK_REF<Dirtyable>> | undefined;
 
+
+    /**
+     * Negative when an emission has already been scheduled for the next microtask.
+     * Prevents duplicate microtask registrations when `set(...)` is called many times
+     * in a tick.
+     * Manually marking this signal as dirty will increase its version.
+     */
+    version: number = 0;
+
     /** Named event subscribers, keyed by event name. */
     // events: Record<string,
     //     EventRef<Events[keyof Events]> | undefined
@@ -281,6 +290,7 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
      *
      * @param fn Callback invoked with `(source, value, ref)` whenever this subscribable emits.
      */
+    
     subscribe(
         fn: (source: this, value: T, ref: LinkedList<any>) => any | void
     ): LinkedList<WEAK_REF<(source: I_Subscribable<T>, value: T, ref: LinkedList<any>) => any | void>>
@@ -294,6 +304,9 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
 
         if (previous_first_item !== undefined)
             previous_first_item.prev = new_item;
+
+        if(this.version === 0)
+            this.version = 1;
 
         return new_item;
     }
@@ -317,6 +330,8 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
         if (previous_first_item !== undefined)
             previous_first_item.prev = new_item;
 
+        if(this.version === 0)
+            this.version = 1;
 
         return new_item;
     }

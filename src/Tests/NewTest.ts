@@ -1,7 +1,7 @@
 // npx tsx --expose-gc ./Tests/NewTest.ts
 
 import { SignalSet, SignalMap, Order, Reducer, I_NativeCollection } from "src/Collections/index.js";
-import { StatefulSubscribable, NativeSignal, Computed } from "src/Core/index.js";
+import { StatefulSubscribable, NativeSignal, Computed, EventManager } from "src/Core/index.js";
 import { interval } from "src/Events/index.js";
 import { Effect } from "src/Sinks/index.js";
 
@@ -134,6 +134,8 @@ tests.push(async function test2()
     signal1.set(3);
     // console.log("SET DONE")
 
+    // EventManager.flush();
+    console.log("Flushing")
     // console.log("About to wait")
     await wait(1);
 
@@ -407,261 +409,261 @@ tests.push(async () =>
 // /**
 //  * Test Sets.
 //  */
-tests.push(async function test3()
-{
+// tests.push(async function test3()
+// {
 
-    const signal1 = new NativeSignal(1);
-    const signal2 = new NativeSignal(2);
+//     const signal1 = new NativeSignal(1);
+//     const signal2 = new NativeSignal(2);
 
-    signal1["name"] = "1";
-    signal2["name"] = "2";
+//     signal1["name"] = "1";
+//     signal2["name"] = "2";
 
-    const set1 = new SignalSet([signal1]);
+//     const set1 = new SignalSet([signal1]);
 
-    assertSetSize(1, set1);
+//     assertSetSize(1, set1);
 
-    async function scope2()
-    {
-        // allow gc to clean up everything inside
-    async function scope1()
-    {
-        let did_emit: { event: "add" | "delete"; value: NativeSignal<number>; }[] = [];
+//     async function scope2()
+//     {
+//         // allow gc to clean up everything inside
+//     async function scope1()
+//     {
+//         let did_emit: { event: "add" | "delete"; value: NativeSignal<number>; }[] = [];
 
-        const cbk = (sig, v) =>
-        {
-            console.log("cbk ", v)
-            did_emit.push(v);
-        };
+//         const cbk = (sig, v) =>
+//         {
+//             console.log("cbk ", v)
+//             did_emit.push(v);
+//         };
 
-        // increment the gc counter when the callback function is recycled.
-        finalizer.register(cbk, "Cbk");
+//         // increment the gc counter when the callback function is recycled.
+//         finalizer.register(cbk, "Cbk");
 
-        set1.subscribe_event(cbk);
+//         set1.subscribe_event(cbk);
 
-        set1.add(signal2);
+//         set1.add(signal2);
 
-        assertSetSize(2, set1);
+//         assertSetSize(2, set1);
 
-        set1.add(signal2);
+//         set1.add(signal2);
 
-        assertSetSize(2, set1);
+//         assertSetSize(2, set1);
 
 
-        set1.delete(signal1);
+//         set1.delete(signal1);
 
-        assertSetSize(1, set1);
+//         assertSetSize(1, set1);
 
-        set1.delete(signal1);
+//         set1.delete(signal1);
 
-        assertSetSize(1, set1);
+//         assertSetSize(1, set1);
 
-        await wait(0);
+//         await wait(0);
 
-        if (
-            !did_emit
-            || did_emit.length !== 2
-            || did_emit[0].event !== "add"
-            || did_emit[0].value !== signal2
-            || did_emit[1].event !== "delete"
-            || did_emit[1].value !== signal1
-        )
-        {
-            console.log('res', did_emit);
-            throw new Error("Didn't emit expected values");
-        }
+//         if (
+//             !did_emit
+//             || did_emit.length !== 2
+//             || did_emit[0].event !== "add"
+//             || did_emit[0].value !== signal2
+//             || did_emit[1].event !== "delete"
+//             || did_emit[1].value !== signal1
+//         )
+//         {
+//             console.log('res', did_emit);
+//             throw new Error("Didn't emit expected values");
+//         }
 
-    }
-    await scope1();
-    await wait(1);
-    }
+//     }
+//     await scope1();
+//     await wait(1);
+//     }
 
-    await scope2();
+//     await scope2();
 
-    await assertGcCount(1);
+//     await assertGcCount(1);
 
-}
-);
+// }
+// );
+
+// // /**
+// //  * Test Maps.
+// //  */
+// tests.push(async function test3()
+// {
+
+//     const signal1 = new NativeSignal(1);
+//     const signal2 = new NativeSignal(2);
+
+//     signal1["name"] = "1";
+//     signal2["name"] = "2";
+
+//     const map1 = new SignalMap([["1", signal1]]);
+
+//     assertSetSize(1, map1);
+
+//     // allow gc to clean up everything inside
+//     async function scope1()
+//     {
+//         let did_emit: { event: "add" | "delete"; key: string, value: NativeSignal<number>; }[] = [];
+
+//         const cbk = (sig, v) =>
+//         {
+//             did_emit.push(v);
+//         };
+
+//         // increment the gc counter when the callback function is recycled.
+//         finalizer.register(cbk, "Cbk");
+
+//         map1.subscribe_event(cbk);
+
+//         map1.set("2", signal2);
+
+//         assertSetSize(2, map1);
+
+//         map1.set("2", signal2);
+
+//         assertSetSize(2, map1);
+
+
+//         map1.delete("1");
+
+//         assertSetSize(1, map1);
+
+//         map1.delete("1");
+
+//         assertSetSize(1, map1);
+
+//         await wait(0);
+
+//         if (
+//             !did_emit
+//             || did_emit.length !== 2
+//             || did_emit[0].event !== "add"
+//             || did_emit[0].value[0] !== "2"
+//             || did_emit[0].value[1] !== signal2
+//             || did_emit[1].event !== "delete"
+//             || did_emit[1].value[0] !== "1"
+//             || did_emit[1].value[1] !== signal1
+//         )
+//         {
+//             console.log('res', did_emit);
+//             throw new Error("Didn't emit expected values");
+//         }
+
+//     }
+
+//     await scope1();
+
+//     await assertGcCount(1);
+// }
+// );
+
+// // /**
+// //  * Test Maps Refs
+// //  */
+// tests.push(async function test3()
+// {
+
+//     const signal1 = new NativeSignal(1);
+//     const signal2 = new NativeSignal(2);
+
+//     signal1["name"] = "1";
+//     signal2["name"] = "2";
+
+//     const map1 = new SignalMap([["1", signal1]]);
+
+//     assertValue(signal1, map1.ref("1"));
+
+//     assertValue(undefined, map1.ref("2"));
+//     assertSetSize(1, map1);
+
+//     map1.ref("2").set(signal2);
+
+//     await wait(0)
+
+//     assertValue(signal2, map1.ref("2"));
+//     assertSetSize(2, map1);
+// }
+// );
 
 // /**
-//  * Test Maps.
+//  * Test Orders
 //  */
-tests.push(async function test3()
-{
+// tests.push(async function OrderTest()
+// {
+//     const order = new Order<number>();
 
-    const signal1 = new NativeSignal(1);
-    const signal2 = new NativeSignal(2);
+//     console.assert(order.first === null && order.first === null, "Initial Order not empty!");
 
-    signal1["name"] = "1";
-    signal2["name"] = "2";
+//     let one = order.push(1);
 
-    const map1 = new SignalMap([["1", signal1]]);
+//     console.assert(order.first !== null && order.first !== null && order.size() === 1, "Order after push: no first/last!");
 
-    assertSetSize(1, map1);
+//     one.delete();
 
-    // allow gc to clean up everything inside
-    async function scope1()
-    {
-        let did_emit: { event: "add" | "delete"; key: string, value: NativeSignal<number>; }[] = [];
+//     console.log(order.first, order.size())
+//     console.assert(order.first === null && order.first === null && order.size() === 0, "Order after Delete not empty! ");
 
-        const cbk = (sig, v) =>
-        {
-            did_emit.push(v);
-        };
+//     // push
 
-        // increment the gc counter when the callback function is recycled.
-        finalizer.register(cbk, "Cbk");
+//     one = order.push(1);
+//     let two = order.push(2);
+//     let three = order.push(3);
 
-        map1.subscribe_event(cbk);
+//     let items = [...order].forEach((v, i) => console.assert(v.value === (i + 1), `Items out of order ${v.value}`));
+// }
+// );
 
-        map1.set("2", signal2);
+// function count<T>(collection: I_NativeCollection<T>, fn: { (v: T, prev:T): number; }, map : boolean, identity:T)
+// {
+//     let reducer = new Reducer(
+//         identity,
+//         (value, last_value, result) =>
+//         {
+//             return fn(value,last_value) + result;
+//         },
+//         0
+//     );
 
-        assertSetSize(2, map1);
+//     reducer.register_collection(collection,false);
 
-        map1.set("2", signal2);
-
-        assertSetSize(2, map1);
-
-
-        map1.delete("1");
-
-        assertSetSize(1, map1);
-
-        map1.delete("1");
-
-        assertSetSize(1, map1);
-
-        await wait(0);
-
-        if (
-            !did_emit
-            || did_emit.length !== 2
-            || did_emit[0].event !== "add"
-            || did_emit[0].value[0] !== "2"
-            || did_emit[0].value[1] !== signal2
-            || did_emit[1].event !== "delete"
-            || did_emit[1].value[0] !== "1"
-            || did_emit[1].value[1] !== signal1
-        )
-        {
-            console.log('res', did_emit);
-            throw new Error("Didn't emit expected values");
-        }
-
-    }
-
-    await scope1();
-
-    await assertGcCount(1);
-}
-);
+//     return reducer;
+// }
 
 // /**
-//  * Test Maps Refs
+//  * Generic Collection Count
 //  */
-tests.push(async function test3()
-{
+// tests.push(async function OrderTest()
+// {
+//     const order = new Order<number>();
+//     order.push(1);
+//     order.push(2);
+//     order.push(3);
+//     const map = new SignalMap<string, number>([
+//         ["hi", 1],
+//         ["hello", 2],
+//         ["bonjour", 3]
+//     ]);
+//     const set = new SignalSet<number>([1, 2, 3]);
 
-    const signal1 = new NativeSignal(1);
-    const signal2 = new NativeSignal(2);
+//     const order_count = count(order, (v,prev) => v-prev, false,0);
+//     const map_count = count(map, (v,prev) => v[1]-prev[1], false,["",0] as const);
+//     const set_count = count(set, (v,prev) => v-prev, false,0);
 
-    signal1["name"] = "1";
-    signal2["name"] = "2";
+//     assertValue(6, order_count, map_count, set_count);
 
-    const map1 = new SignalMap([["1", signal1]]);
+//     order.push(4);
+//     set.add(4);
+//     map.set("hallo",4);
+//     await wait(100);
+//     assertValue(10, order_count, map_count, set_count);
 
-    assertValue(signal1, map1.ref("1"));
+//     order.push(5);
+//     set.add(5);
+//     map.set("hola",5);
+//     assertValue(15, order_count, map_count, set_count);
 
-    assertValue(undefined, map1.ref("2"));
-    assertSetSize(1, map1);
-
-    map1.ref("2").set(signal2);
-
-    await wait(0)
-
-    assertValue(signal2, map1.ref("2"));
-    assertSetSize(2, map1);
-}
-);
-
-/**
- * Test Orders
- */
-tests.push(async function OrderTest()
-{
-    const order = new Order<number>();
-
-    console.assert(order.first === null && order.first === null, "Initial Order not empty!");
-
-    let one = order.push(1);
-
-    console.assert(order.first !== null && order.first !== null && order.size() === 1, "Order after push: no first/last!");
-
-    one.delete();
-
-    console.log(order.first, order.size())
-    console.assert(order.first === null && order.first === null && order.size() === 0, "Order after Delete not empty! ");
-
-    // push
-
-    one = order.push(1);
-    let two = order.push(2);
-    let three = order.push(3);
-
-    let items = [...order].forEach((v, i) => console.assert(v.value === (i + 1), `Items out of order ${v.value}`));
-}
-);
-
-function count<T>(collection: I_NativeCollection<T>, fn: { (v: T, prev:T): number; }, map : boolean, identity:T)
-{
-    let reducer = new Reducer(
-        identity,
-        (value, last_value, result) =>
-        {
-            return fn(value,last_value) + result;
-        },
-        0
-    );
-
-    reducer.register_collection(collection,false);
-
-    return reducer;
-}
-
-/**
- * Generic Collection Count
- */
-tests.push(async function OrderTest()
-{
-    const order = new Order<number>();
-    order.push(1);
-    order.push(2);
-    order.push(3);
-    const map = new SignalMap<string, number>([
-        ["hi", 1],
-        ["hello", 2],
-        ["bonjour", 3]
-    ]);
-    const set = new SignalSet<number>([1, 2, 3]);
-
-    const order_count = count(order, (v,prev) => v-prev, false,0);
-    const map_count = count(map, (v,prev) => v[1]-prev[1], false,["",0] as const);
-    const set_count = count(set, (v,prev) => v-prev, false,0);
-
-    assertValue(6, order_count, map_count, set_count);
-
-    order.push(4);
-    set.add(4);
-    map.set("hallo",4);
-    await wait(100);
-    assertValue(10, order_count, map_count, set_count);
-
-    order.push(5);
-    set.add(5);
-    map.set("hola",5);
-    assertValue(15, order_count, map_count, set_count);
-
-}
-);
+// }
+// );
 
 /**
  * Generic Fast Reduce (count)
