@@ -132,145 +132,145 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
     dependants: LinkedList<WEAK_REF<Dirtyable>> | undefined;
 
     /** Named event subscribers, keyed by event name. */
-    events: Record<string,
-        EventRef<Events[keyof Events]> | undefined
-    >;
+    // events: Record<string,
+    //     EventRef<Events[keyof Events]> | undefined
+    // >;
 
     /** Subscribers that fire on *every* named event regardless of name. */
-    any_events: EventRef<undefined> | undefined;
+    // any_events: EventRef<undefined> | undefined;
 
-    /**
-     * Subscribe to a named event, or to *any* named event if `event` is undefined.
-     *
-     * Unlike value subscriptions, event notifications propagate **instantly** — there is
-     * no microtask deferral or coalescing.
-     *
-     * @param fn The callback. Held weakly: keep your own reference if you want to keep receiving events.
-     * @param event Optional event name. If omitted, the callback fires for every event.
-     * @returns A reference token used to unsubscribe later.
-     */
-    subscribe_event<K extends keyof Events>(
-        fn: (
-            source: Subscribable<any, any>,
-            event: Events[K],
-            ref: EventRef<any>
-        ) => any,
-        event?: K
-    )
-    {
-        let previous_first_item = event === undefined ? this.any_events : (this.events ??= {})[event as any];
+    // /**
+    //  * Subscribe to a named event, or to *any* named event if `event` is undefined.
+    //  *
+    //  * Unlike value subscriptions, event notifications propagate **instantly** — there is
+    //  * no microtask deferral or coalescing.
+    //  *
+    //  * @param fn The callback. Held weakly: keep your own reference if you want to keep receiving events.
+    //  * @param event Optional event name. If omitted, the callback fires for every event.
+    //  * @returns A reference token used to unsubscribe later.
+    //  */
+    // subscribe_event<K extends keyof Events>(
+    //     fn: (
+    //         source: Subscribable<any, any>,
+    //         event: Events[K],
+    //         ref: EventRef<any>
+    //     ) => any,
+    //     event?: K
+    // )
+    // {
+    //     let previous_first_item = event === undefined ? this.any_events : (this.events ??= {})[event as any];
 
-        const new_item: EventRef<Events[K]> = {
-            next: previous_first_item,
-            // Held weakly so that the next subscription doesn't end up referencing this one
-            // (it's a linked list after all), which would create a chain of strong references
-            // and prevent GC from cleaning up orphaned subscribers.
-            value: $USE_WEAK_REFS$ ? new WeakRef(fn) : fn,
-            event: event as string
-        };
+    //     const new_item: EventRef<Events[K]> = {
+    //         next: previous_first_item,
+    //         // Held weakly so that the next subscription doesn't end up referencing this one
+    //         // (it's a linked list after all), which would create a chain of strong references
+    //         // and prevent GC from cleaning up orphaned subscribers.
+    //         value: $USE_WEAK_REFS$ ? new WeakRef(fn) : fn,
+    //         event: event as string
+    //     };
 
-        if (previous_first_item === undefined)
-        {
-            if (event === undefined)
-                this.any_events = new_item;
-            else
-                this.events[event as string] = new_item;
-        }
+    //     if (previous_first_item === undefined)
+    //     {
+    //         if (event === undefined)
+    //             this.any_events = new_item;
+    //         else
+    //             this.events[event as string] = new_item;
+    //     }
 
-        if (previous_first_item !== undefined)
-            previous_first_item.prev = new_item;
+    //     if (previous_first_item !== undefined)
+    //         previous_first_item.prev = new_item;
 
-        return new_item;
-    }
+    //     return new_item;
+    // }
 
-    /**
-     * Force unsubscribe from a named event.
-     *
-     * Generally not recommended — garbage collection will do the same thing automatically
-     * once the callback has no other references. Use this only when you need to stop
-     * receiving events *immediately* and cannot wait for a GC pass.
-     */
-    unsubscribe_event(reference: EventRef<any>)
-    {
-        let event_name = reference["event"];
+    // /**
+    //  * Force unsubscribe from a named event.
+    //  *
+    //  * Generally not recommended — garbage collection will do the same thing automatically
+    //  * once the callback has no other references. Use this only when you need to stop
+    //  * receiving events *immediately* and cannot wait for a GC pass.
+    //  */
+    // unsubscribe_event(reference: EventRef<any>)
+    // {
+    //     let event_name = reference["event"];
 
-        if (reference.next !== undefined)
-            reference.next.prev = reference.prev;
+    //     if (reference.next !== undefined)
+    //         reference.next.prev = reference.prev;
 
-        if (reference.prev !== undefined)
-            reference.prev.next = reference.next;
-        else
-        {
-            if (event_name === undefined)
-                if (this.any_events === reference)
-                    this.any_events = reference.next;
-                else
-                    if (this.events?.[event_name] === reference)
-                        this.events[event_name] = reference.next;
-        }
+    //     if (reference.prev !== undefined)
+    //         reference.prev.next = reference.next;
+    //     else
+    //     {
+    //         if (event_name === undefined)
+    //             if (this.any_events === reference)
+    //                 this.any_events = reference.next;
+    //             else
+    //                 if (this.events?.[event_name] === reference)
+    //                     this.events[event_name] = reference.next;
+    //     }
 
-        return this;
-    }
+    //     return this;
+    // }
 
-    /**
-     * Returns true if there is at least one subscriber that would receive the given event.
-     *
-     * Why this exists: `emit_event` will not be inlined by V8 (too large), but `can_emit`
-     * is small enough to inline. So `if (can_emit(e)) emit_event(e)` can paradoxically
-     * outperform an unconditional `emit_event(e)` call when the common case is "no
-     * subscribers", because the inlined fast-path skips the function call entirely.
-     */
-    can_emit<K extends keyof Events>(event: Events[K])
-    {
-        return (this.any_events ?? this.events?.[event.event]) !== undefined;
-    }
+    // /**
+    //  * Returns true if there is at least one subscriber that would receive the given event.
+    //  *
+    //  * Why this exists: `emit_event` will not be inlined by V8 (too large), but `can_emit`
+    //  * is small enough to inline. So `if (can_emit(e)) emit_event(e)` can paradoxically
+    //  * outperform an unconditional `emit_event(e)` call when the common case is "no
+    //  * subscribers", because the inlined fast-path skips the function call entirely.
+    //  */
+    // can_emit<K extends keyof Events>(event: Events[K])
+    // {
+    //     return (this.any_events ?? this.events?.[event.event]) !== undefined;
+    // }
 
-    /**
-     * Synchronously notify every subscriber of the given named event, plus every
-     * `any_events` subscriber. Dead `WeakRef`s are pruned along the way.
-     */
-    emit_event<K extends keyof Events>(event: Events[K])
-    {
-        let events = this.events?.[event.event];
-        while (events !== undefined)
-        {
-            if ($USE_WEAK_REFS$)
-            {
-                const deref = events.value["deref"]();
-                if (deref === undefined)
-                    this.unsubscribe_event(events)
-                else
-                    deref(this as any, event, events)
-            }
-            else
-            {
-                events.value(this, event, events);
-            }
+    // /**
+    //  * Synchronously notify every subscriber of the given named event, plus every
+    //  * `any_events` subscriber. Dead `WeakRef`s are pruned along the way.
+    //  */
+    // emit_event<K extends keyof Events>(event: Events[K])
+    // {
+    //     let events = this.events?.[event.event];
+    //     while (events !== undefined)
+    //     {
+    //         if ($USE_WEAK_REFS$)
+    //         {
+    //             const deref = events.value["deref"]();
+    //             if (deref === undefined)
+    //                 this.unsubscribe_event(events)
+    //             else
+    //                 deref(this as any, event, events)
+    //         }
+    //         else
+    //         {
+    //             events.value(this, event, events);
+    //         }
 
-            events = events.next;
-        }
+    //         events = events.next;
+    //     }
 
-        let events2 = this.any_events;
-        while (events2 !== undefined)
-        {
-            if ($USE_WEAK_REFS$)
-            {
-                const deref = events2.value["deref"]();
-                if (deref === undefined)
-                    this.unsubscribe_event(events2)
-                else
-                    deref(this as any, event, events2)
-            }
-            else
-            {
-                events2.value(this, event, events2);
-            }
+    //     let events2 = this.any_events;
+    //     while (events2 !== undefined)
+    //     {
+    //         if ($USE_WEAK_REFS$)
+    //         {
+    //             const deref = events2.value["deref"]();
+    //             if (deref === undefined)
+    //                 this.unsubscribe_event(events2)
+    //             else
+    //                 deref(this as any, event, events2)
+    //         }
+    //         else
+    //         {
+    //             events2.value(this, event, events2);
+    //         }
 
-            events2 = events2.next;
-        }
+    //         events2 = events2.next;
+    //     }
 
-        return this;
-    }
+    //     return this;
+    // }
 
     /**
      * Subscribe a function to be called when the value of this Subscribable changes.
@@ -398,27 +398,27 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
         return this;
     }
 
-    /**
-     * Resolve the next time this subscribable emits, then unsubscribe.
-     *
-     * Useful for awaiting a single event in async code:
-     * `const next_value = await some_signal.promise();`
-     */
-    promise(): Promise<T>
-    {
-        let resolve: (arg0: T) => void;
-        let reference;
-        const subscriber = (source: Dirtyable, v: T) =>
-        {
-            this.unsubscribe(reference);
-            resolve(v);
-        }
-        reference = this.subscribe(subscriber);
-        return new Promise((_resolve) =>
-        {
-            resolve = _resolve
-        })
-    }
+    // /**
+    //  * Resolve the next time this subscribable emits, then unsubscribe.
+    //  *
+    //  * Useful for awaiting a single event in async code:
+    //  * `const next_value = await some_signal.promise();`
+    //  */
+    // promise(): Promise<T>
+    // {
+    //     let resolve: (arg0: T) => void;
+    //     let reference;
+    //     const subscriber = (source: Dirtyable, v: T) =>
+    //     {
+    //         this.unsubscribe(reference);
+    //         resolve(v);
+    //     }
+    //     reference = this.subscribe(subscriber);
+    //     return new Promise((_resolve) =>
+    //     {
+    //         resolve = _resolve
+    //     })
+    // }
 }
 
 export default Subscribable;

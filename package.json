@@ -8,7 +8,8 @@
   "scripts": {
     "publish:local": "npm run build:mangled && npx yalc push --private",
     "test": "tsx --expose-gc ./src/Tests/NewTest.ts",
-    "test:stress": "tsx --expose-gc ./src/Tests/StressTest2.ts",
+    "test:stress": "tsx --predictable --expose-gc --max-semi-space-size=128 --max-old-space-size=8192 ./src/Tests/StressTest2.ts",
+    "test:stable": "bash scripts/bench.sh",
     "test:angular": "node ./dist/strong/Tests/Benchmark.js",
     "build": "rm ./dist -rf && rollup --config rollup.config.ts"
   },
@@ -43,6 +44,7 @@
     "@rollup/plugin-replace": "^6.0.3",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.1.4",
+    "@types/node": "^25.9.1",
     "jsmin": "^1.0.1",
     "reflect-metadata": "^0.2.2",
     "rollup": "^4.45.1",

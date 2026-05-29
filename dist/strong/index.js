@@ -28,33 +28,6 @@ function push_subscribable(sub) {
 class Subscribable {
     subscribers;
     dependants;
-    events;
-    any_events;
-    subscribe_event(fn, event) {
-        let previous_first_item = void 0 === event ? this.any_events : (this.events ??= {})[event];
-        const new_item = {
-            next: previous_first_item,
-            value: fn,
-            event: event
-        };
-        return void 0 === previous_first_item && (void 0 === event ? this.any_events = new_item : this.events[event] = new_item), 
-        void 0 !== previous_first_item && (previous_first_item.prev = new_item), new_item;
-    }
-    unsubscribe_event(reference) {
-        let event_name = reference.event;
-        return void 0 !== reference.next && (reference.next.prev = reference.prev), void 0 !== reference.prev ? reference.prev.next = reference.next : void 0 === event_name && (this.any_events === reference ? this.any_events = reference.next : this.events?.[event_name] === reference && (this.events[event_name] = reference.next)), 
-        this;
-    }
-    can_emit(event) {
-        return void 0 !== (this.any_events ?? this.events?.[event.event]);
-    }
-    emit_event(event) {
-        let events = this.events?.[event.event];
-        for (;void 0 !== events; ) events.value(this, event, events), events = events.next;
-        let events2 = this.any_events;
-        for (;void 0 !== events2; ) events2.value(this, event, events2), events2 = events2.next;
-        return this;
-    }
     subscribe(fn) {
         const previous_first_item = this.subscribers, new_item = this.subscribers = {
             next: previous_first_item,
@@ -91,31 +64,39 @@ class Subscribable {
         }
         return this;
     }
-    promise() {
-        let resolve, reference;
-        return reference = this.subscribe((source, v) => {
-            this.unsubscribe(reference), resolve(v);
-        }), new Promise(_resolve => {
-            resolve = _resolve;
-        });
-    }
 }
 
 class Computed {
     subscribed_to=[];
     fn;
     context;
-    _dirty=!0;
+    _dirty="first";
     _cache;
     _eager;
     on_emit(context) {
-        context.emit(context.get());
+        if (!1 === context._dirty) return;
+        const prev = context._cache;
+        context.get(), prev !== context._cache && context.emit(context._cache);
     }
     dirty(source, ref) {
-        this._dirty || (this._dirty = !0, this.__base_dirty(source, ref), (void 0 !== this.subscribers || this._eager) && EventManager.register_async_emit(this.on_emit, this));
+        this._dirty || (this._dirty = "maybe", this.__base_dirty(source, ref), (void 0 !== this.subscribers || this._eager) && EventManager.register_async_emit(this.on_emit, this));
     }
     get() {
-        return push_subscribable(this), this._dirty ? this._get() : this._cache;
+        return push_subscribable(this), !1 === this._dirty ? this._cache : "maybe" !== this._dirty || this._validate() ? this._get() : (this._dirty = !1, 
+        this._cache);
+    }
+    peek() {
+        return this._cache;
+    }
+    _validate() {
+        const subscribed_to = this.subscribed_to, len = subscribed_to.length, saved_listen = EventManager.global_listen;
+        EventManager.global_listen = 0;
+        for (let i = 0; i < len; i++) {
+            const entry = subscribed_to[i];
+            if (entry.signal.get() !== entry.last) return EventManager.global_listen = saved_listen, 
+            !0;
+        }
+        return EventManager.global_listen = saved_listen, !1;
     }
     subscribe(fn) {
         return "first" === this._dirty && this._get(), this.__base_subscribe(fn);
@@ -129,8 +110,13 @@ class Computed {
             EventManager.global_listen--;
         }
         let subscribed_to = this.subscribed_to;
-        const fresh_dependency_length = EventManager.global_listener_length - global_listener_index;
-        if (subscribed_to.length <= 1 && fresh_dependency_length === subscribed_to.length) ; else {
+        const global_listeners = EventManager.global_listeners, fresh_dependency_length = EventManager.global_listener_length - global_listener_index;
+        if (subscribed_to.length <= 1 && fresh_dependency_length === subscribed_to.length) {
+            if (1 === fresh_dependency_length) {
+                const entry = subscribed_to[0];
+                entry.last = entry.signal.peek();
+            }
+        } else {
             const l1 = subscribed_to.length;
             for (let i = 0; i < l1; i++) {
                 let {ref: ref, signal: signal} = subscribed_to[i];
@@ -138,13 +124,14 @@ class Computed {
             }
             const length = EventManager.global_listener_length;
             for (let i = global_listener_index; i < length; i++) {
-                const sub = EventManager.global_listeners[i];
+                const sub = global_listeners[i], last = sub.peek();
                 if (i < l1) {
                     let existing = subscribed_to[i];
-                    existing.ref = sub.depend(this), existing.signal = sub;
+                    existing.ref = sub.depend(this), existing.signal = sub, existing.last = last;
                 } else subscribed_to.push({
                     signal: sub,
-                    ref: sub.depend(this)
+                    ref: sub.depend(this),
+                    last: last
                 });
             }
             length < l1 && (subscribed_to.length = length);
@@ -159,39 +146,13 @@ class Computed {
     }
     subscribers;
     dependants;
-    events;
-    any_events;
-    subscribe_event(fn, event) {
-        let previous_first_item = void 0 === event ? this.any_events : (this.events ??= {})[event];
-        const new_item = {
-            next: previous_first_item,
-            value: fn,
-            event: event
-        };
-        return void 0 === previous_first_item && (void 0 === event ? this.any_events = new_item : this.events[event] = new_item), 
-        void 0 !== previous_first_item && (previous_first_item.prev = new_item), new_item;
-    }
-    unsubscribe_event(reference) {
-        let event_name = reference.event;
-        return void 0 !== reference.next && (reference.next.prev = reference.prev), void 0 !== reference.prev ? reference.prev.next = reference.next : void 0 === event_name && (this.any_events === reference ? this.any_events = reference.next : this.events?.[event_name] === reference && (this.events[event_name] = reference.next)), 
-        this;
-    }
-    can_emit(event) {
-        return void 0 !== (this.any_events ?? this.events?.[event.event]);
-    }
-    emit_event(event) {
-        let events = this.events?.[event.event];
-        for (;void 0 !== events; ) events.value(this, event, events), events = events.next;
-        let events2 = this.any_events;
-        for (;void 0 !== events2; ) events2.value(this, event, events2), events2 = events2.next;
-        return this;
-    }
     __base_subscribe(fn) {
         const previous_first_item = this.subscribers, new_item = this.subscribers = {
             next: previous_first_item,
             value: fn
         };
-        void 0 !== previous_first_item && (previous_first_item.prev = new_item);
+        return void 0 !== previous_first_item && (previous_first_item.prev = new_item), 
+        new_item;
     }
     depend(subscribable) {
         const previous_first_item = this.dependants, new_item = this.dependants = {
@@ -221,14 +182,6 @@ class Computed {
         }
         return this;
     }
-    promise() {
-        let resolve, reference;
-        return reference = this.subscribe((source, v) => {
-            this.unsubscribe(reference), resolve(v);
-        }), new Promise(_resolve => {
-            resolve = _resolve;
-        });
-    }
     constructor(fn, context, eager = !1) {
         this.fn = fn, this.context = context, this._eager = eager, eager ? this._cache = this._get() : this._dirty = "first";
     }
@@ -239,6 +192,9 @@ class NativeSignal {
     queued;
     get() {
         return push_subscribable(this), this._value;
+    }
+    peek() {
+        return this._value;
     }
     set(value) {
         value !== this._value && (this._value = value, this.dirty(this, void 0, value));
@@ -256,33 +212,6 @@ class NativeSignal {
     }
     subscribers;
     dependants;
-    events;
-    any_events;
-    subscribe_event(fn, event) {
-        let previous_first_item = void 0 === event ? this.any_events : (this.events ??= {})[event];
-        const new_item = {
-            next: previous_first_item,
-            value: fn,
-            event: event
-        };
-        return void 0 === previous_first_item && (void 0 === event ? this.any_events = new_item : this.events[event] = new_item), 
-        void 0 !== previous_first_item && (previous_first_item.prev = new_item), new_item;
-    }
-    unsubscribe_event(reference) {
-        let event_name = reference.event;
-        return void 0 !== reference.next && (reference.next.prev = reference.prev), void 0 !== reference.prev ? reference.prev.next = reference.next : void 0 === event_name && (this.any_events === reference ? this.any_events = reference.next : this.events?.[event_name] === reference && (this.events[event_name] = reference.next)), 
-        this;
-    }
-    can_emit(event) {
-        return void 0 !== (this.any_events ?? this.events?.[event.event]);
-    }
-    emit_event(event) {
-        let events = this.events?.[event.event];
-        for (;void 0 !== events; ) events.value(this, event, events), events = events.next;
-        let events2 = this.any_events;
-        for (;void 0 !== events2; ) events2.value(this, event, events2), events2 = events2.next;
-        return this;
-    }
     subscribe(fn) {
         const previous_first_item = this.subscribers, new_item = this.subscribers = {
             next: previous_first_item,
@@ -318,14 +247,6 @@ class NativeSignal {
             subscriber = subscriber.next;
         }
         return this;
-    }
-    promise() {
-        let resolve, reference;
-        return reference = this.subscribe((source, v) => {
-            this.unsubscribe(reference), resolve(v);
-        }), new Promise(_resolve => {
-            resolve = _resolve;
-        });
     }
     constructor(value) {
         this._value = value;

@@ -30,11 +30,16 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
 {
     /**
      * Currently-tracked dependencies, paired with the linked-list reference returned
-     * by `depend()`. We store them in an array (not a Set/Map) because the array is
-     * recycled across recomputations — this is significantly faster than recomputing
-     * a difference between old and new dependency sets each time. See `_get`.
+     * by `depend()` and the last-seen value at the time of the last evaluation. We
+     * store them in an array (not a Set/Map) because the array is recycled across
+     * recomputations — this is significantly faster than recomputing a difference
+     * between old and new dependency sets each time. See `_get`.
+     *
+     * `last` is read via `signal.peek()` and is used by `_validate()` to determine
+     * whether any dependency actually changed value (vs merely propagating a
+     * "maybe-stale" flag from upstream).
      */
-    subscribed_to: { signal: Subscribable<any>, ref: any }[] = [];
+    subscribed_to: { signal: Subscribable<any>, ref: any, last: any }[] = [];
 
     /** The user-provided function. The dependencies are captured by closure inside `fn`. */
     readonly fn: (self: CONTEXT) => T;
@@ -43,12 +48,16 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
     readonly context: CONTEXT;
 
     /**
-     * Tri-state dirty flag:
+     * Dirty flag with three states:
      *   - `"first"` — never run yet, will subscribe to dependencies on first `get`/`subscribe`.
-     *   - `true`    — known stale, recompute on next `get`.
-     *   - `false`   — `_cache` is current.
+     *   - `"maybe"` — upstream reported a change, but we have not verified whether any
+     *                 dependency's value actually differs from what we last saw. Validation
+     *                 happens lazily in `get()` via `_validate()`. This is the key state
+     *                 that lets us avoid recomputing (and re-emitting) when an upstream
+     *                 "change" turns out to produce the same value downstream.
+     *   - `false`  — `_cache` is current.
      */
-    _dirty: boolean | "first" = true;
+    _dirty: false | "first" | "maybe" = "first";
 
     /** Last computed value. Defined after the first evaluation. */
     _cache!: T;
@@ -84,23 +93,49 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
         }
     }
 
+    /**
+     * Microtask callback used by `dirty`. Resolves the "maybe-stale" state (recomputes
+     * if necessary) and emits **only** if the resolved value differs from what
+     * subscribers last saw. This is what cuts the dependency graph: a change upstream
+     * that doesn't actually alter our output stops propagating here.
+     *
+     * `prev` captures `_cache` before `get()`. After `get()` returns, `_cache` is
+     * either unchanged (validation walk found no real change → no emit) or updated
+     * to the new value (compare and emit if different). `Object.is` handles `NaN`
+     * correctly without the cost of a separate branch.
+     */
     on_emit(context: Computed<T, CONTEXT>)
     {
-        context.emit(context.get());
+        if (context._dirty === false)
+            return;
+
+        const prev = context._cache;
+        context.get();
+        // `===` matches NativeSignal.set's equality semantics. NaN-in / NaN-out
+        // produces an emit either way, consistent with NativeSignal treating any
+        // set(NaN) as a change.
+        if (prev !== context._cache)
+            context.emit(context._cache);
     }
 
     /**
-     * Mark this computed dirty and propagate through the dependency graph.
+     * Mark this computed as **maybe** stale and propagate through the dependency graph.
      *
-     * The early return on `_dirty === true` is a perf measure: if we're already known
-     * stale, downstream dependants are already marked stale too — no need to walk the
-     * graph again.
+     * "Maybe" rather than "definitely" because an upstream signal reporting a change
+     * does not imply *our* function will produce a different output. Verification is
+     * deferred until `get()` is called (or `on_emit` fires on the microtask), at which
+     * point `_validate()` walks our deps and checks whether any of their values actually
+     * differ from what we last saw.
+     *
+     * The early return on a non-`false` `_dirty` is a perf measure: if we're already
+     * known maybe-stale (or never-run), downstream dependants have already been marked
+     * too — no need to walk the graph again.
      */
     override dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>)
     {
         if (this._dirty)
             return;
-        this._dirty = true;
+        this._dirty = "maybe";
 
         super.dirty(source, ref);
 
@@ -117,6 +152,10 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
      * Read the current value. If a parent `Computed` is currently evaluating, this
      * computed registers itself as a dependency of the parent. If the cache is stale,
      * the function is re-run.
+     *
+     * When `_dirty === "maybe"` we first run `_validate()`, which walks our deps
+     * (calling `peek()` on each) and compares against the values we last recorded.
+     * If nothing changed, we keep `_cache` and skip the (potentially expensive) `fn`.
      */
     get()
     {
@@ -124,10 +163,73 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
         // register ourselves with the enclosing tracker.
         push_subscribable(this);
 
-        if (this._dirty)
-            return this._get();
+        if (this._dirty === false)
+            return this._cache;
 
+        if (this._dirty === "maybe" && !this._validate())
+        {
+            // No dep actually changed — cache is still good. Clear the flag.
+            this._dirty = false;
+            return this._cache;
+        }
+
+        return this._get();
+    }
+
+    /**
+     * Untracked read of the current cached value. Used by an enclosing Computed's
+     * `_get()` to snapshot dep values into `subscribed_to[i].last` without
+     * re-triggering dependency tracking. The value may be stale if `_dirty !== false`,
+     * but `_get()` only calls this immediately after the dep was just read via its
+     * own `get()`, so the cache is fresh at that moment.
+     */
+    peek(): T
+    {
         return this._cache;
+    }
+
+    /**
+     * Walk `subscribed_to` and check whether any dep's current value differs from
+     * the value we recorded the last time we evaluated. Returns `true` as soon as a
+     * change is found (early-out). Returns `false` only if every dep matches.
+     *
+     * We call `dep.get()` rather than `dep.peek()` so that a dep which is itself a
+     * `Computed` in `"maybe"` state recursively resolves its own validation. A chain
+     * of computeds where the upstream change cancels out at some point will collapse
+     * top-down, paying at most one walk per node per tick (since each node settles
+     * to `false` or recomputes once and caches the result).
+     *
+     * Critical perf detail: we must not let these recursive `get()` calls re-register
+     * the deps with any *outer* computed evaluation. We temporarily set `global_listen`
+     * to 0 to suppress tracking during the walk.
+     */
+    _validate(): boolean
+    {
+        const subscribed_to = this.subscribed_to;
+        const len = subscribed_to.length;
+
+        // Suppress dep-tracking during the walk so recursive get()s don't pollute
+        // any enclosing computed's listener bucket. No try/finally: the walk only
+        // calls framework code on already-subscribed signals, none of which throws.
+        const saved_listen = EventManager.global_listen;
+        EventManager.global_listen = 0;
+
+        for (let i = 0; i < len; i++)
+        {
+            const entry = subscribed_to[i];
+            // For "maybe"-state Computeds, get() resolves recursively. For
+            // NativeSignals, get() is a single field read (push_subscribable is a
+            // no-op when global_listen === 0).
+            const current = (entry.signal as any).get();
+            if (current !== entry.last)
+            {
+                EventManager.global_listen = saved_listen;
+                return true;
+            }
+        }
+
+        EventManager.global_listen = saved_listen;
+        return false;
     }
 
     override subscribe(
@@ -145,14 +247,18 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
     }
 
     /**
-     * Internal: re-evaluate the function, refresh the dependency set, and cache the
-     * result.
+     * Internal: re-evaluate the function, refresh the dependency set, snapshot the
+     * `last` value of each dep, and cache the result.
      *
      * **The dependency-set refresh is deliberately written in a peculiar way.** It
      * unsubscribes from every previous dependency, then resubscribes to every current
      * one — even ones that didn't change. You might expect a Set/Map difference to be
      * faster, but in practice this loop is so much cheaper per iteration that it wins
      * for typical computed sizes (small N). Don't "optimize" it without benchmarking.
+     *
+     * `last` is recorded via `sub.peek()` (untracked read) AFTER `fn()` has finished
+     * but BEFORE we re-enable dep tracking. It must reflect the dep's value at the
+     * moment we last evaluated, so that `_validate()` can later detect changes.
      */
     _get()
     {
@@ -173,12 +279,23 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
         }
 
         let subscribed_to = this.subscribed_to;
+        const global_listeners = EventManager.global_listeners;
 
         // If there's just one source, then nothing can have changed.
         // Exception : Untracked side effect. 
         const fresh_dependency_length = EventManager.global_listener_length - global_listener_index;
         if (subscribed_to.length <= 1 && fresh_dependency_length === subscribed_to.length)
         {
+            // Fast path: dep identity unchanged. Still must refresh `last` so the next
+            // validation walk has an accurate baseline. For an empty dep set, this loop
+            // runs zero times.
+            if (fresh_dependency_length === 1)
+            {
+                const entry = subscribed_to[0];
+                entry.last = (entry.signal as any).peek();
+                if ($USE_WEAK_REFS$)
+                    global_listeners[global_listener_index] = undefined;
+            }
         }
         else
         {
@@ -195,22 +312,26 @@ export class Computed<T, CONTEXT = any> extends Subscribable<T> implements State
             const length = EventManager.global_listener_length;
             for (let i = global_listener_index; i < length; i++)
             {
-                const sub = EventManager.global_listeners[i];
+                const sub = global_listeners[i];
 
                 // Make sure to release all the unused potential listeners so GC can kick in.
                 if($USE_WEAK_REFS$)
-                    EventManager.global_listeners[i] = undefined;
+                    global_listeners[i] = undefined;
+
+                const last = (sub as any).peek();
 
                 if (i < l1)
                 {
                     let existing = subscribed_to[i];
                     existing.ref = sub.depend(this);
                     existing.signal = sub;
+                    existing.last = last;
                 }
                 else
                     subscribed_to.push({
                         signal: sub,
-                        ref: sub.depend(this)
+                        ref: sub.depend(this),
+                        last: last
                     });
             }
 

@@ -1,142 +1,159 @@
-// src/StressTest.ts
+import { performance } from 'node:perf_hooks';
+import { Computed, NativeSignal } from 'src/Core';
+// import { count, Order, reduce_fast } from 'src/Collections';
 
-async function wait(ms: number)
-{
-    let { resolve, promise } = Promise.withResolvers();
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
+const numSignals = 10_000_000;
+const numSubscribersPerSignal = 1;
+
+// Heavy pipeline (creation) is expensive per run, so use fewer samples.
+// The light loops can afford more. Tune these until `spread` is small.
+const HEAVY = { warmup: 1, samples: 5 };
+const LIGHT = { warmup: 3, samples: 12 };
+
+(globalThis as any).$USE_WEAK_REFS$ = true;
+
+// ---------------------------------------------------------------------------
+// Harness
+// ---------------------------------------------------------------------------
+
+// Use global.gc() if available (run node with --expose-gc), else no-op.
+const gc: () => void = (globalThis as any).gc ?? (() => {});
+
+// Sink to defeat dead-code elimination. Anything assigned here is observably
+// "used" because we log it once at the very end.
+let SINK: unknown;
+const sink = (v: unknown) => { SINK = v; };
+
+async function wait(ms: number) {
+    const { resolve, promise } = Promise.withResolvers<void>();
     setTimeout(resolve, ms);
     await promise;
 }
 
-const numSignals = 1_000_000;
-const numSubscribersPerSignal = 1;
-const numIterations = 1_000_000;
+interface Opts { warmup: number; samples: number; }
 
-global.$USE_WEAK_REFS$  = true;
+function summarize(times: number[]) {
+    const sorted = [...times].sort((a, b) => a - b);
+    const min = sorted[0];
+    const max = sorted[sorted.length - 1];
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const spreadPct = ((max - min) / min) * 100; // relative range of samples
+    return { min, median, spreadPct };
+}
+
+function report(name: string, times: number[]) {
+    const { min, median, spreadPct } = summarize(times);
+    // `min` is your reliable score. `spread` tells you whether to trust it:
+    // a large spread means the environment is noisy (close background apps,
+    // disable turbo, pin a core) rather than the code being slow.
+    console.log(
+        `${name.padEnd(42)} min=${min.toFixed(1).padStart(8)}ms` +
+        `  median=${median.toFixed(1).padStart(8)}ms  spread=${spreadPct.toFixed(1)}%`,
+    );
+}
+
+/** Time a synchronous region across multiple samples. `setup` runs untimed. */
+function bench(name: string, run: () => void, setup: () => void, opts: Opts) {
+    for (let i = 0; i < opts.warmup; i++) { setup(); run(); }
+    const times: number[] = [];
+    for (let i = 0; i < opts.samples; i++) {
+        setup();
+        gc(); // collect before timing so GC doesn't fire inside the region
+        const t = performance.now();
+        run();
+        times.push(performance.now() - t);
+    }
+    report(name, times);
+}
+
+// ---------------------------------------------------------------------------
+// Stress test 1 — create / subscribe / set / flush pipeline
+//
+// The phases are dependent, so we run the whole pipeline K times and keep the
+// per-phase min across runs. gc() between runs frees the previous batch so it
+// doesn't add heap pressure to the next.
+// ---------------------------------------------------------------------------
+async function runPipelineOnce() {
+    const signals = new Array<NativeSignal<number>>(numSignals); // preallocate
+    let inc = 0;
+    const subber = (_: unknown, _value: number) => { inc++; };
+
+    gc();
+    let t = performance.now();
+    for (let i = 0; i < numSignals; i++) signals[i] = new NativeSignal(i);
+    const create = performance.now() - t;
+
+    gc();
+    t = performance.now();
+    for (let i = 0; i < numSignals; i++)
+        for (let j = 0; j < numSubscribersPerSignal; j++) signals[i].subscribe(subber);
+    const subscribe = performance.now() - t;
+
+    gc();
+    t = performance.now();
+    for (let i = 0; i < numSignals; i++) signals[i].set(123);
+    const set = performance.now() - t;
+
+    t = performance.now();
+    await wait(0);
+    const flush = performance.now() - t;
+
+    sink(inc); // prevent the empty subscriber loop from being optimized away
+    return { create, subscribe, set, flush };
+}
 
 async function stressTest() {
-    const signals: NativeSignal<number>[] = [];
+    const phases = ['create', 'subscribe', 'set', 'flush'] as const;
+    const samples: Record<typeof phases[number], number[]> =
+        { create: [], subscribe: [], set: [], flush: [] };
 
-    let inc = 0;
-    const subber = (_,value: number) => {
-        // Do nothing, just simulate a subscriber
-        inc++;
-    };
-
-    let start = Date.now();
-
-    // Create a large number of signals
-    for (let i = 0; i < numSignals; i++) {
-        signals.push(new NativeSignal(i));
+    for (let i = 0; i < HEAVY.warmup; i++) { await runPipelineOnce(); gc(); }
+    for (let i = 0; i < HEAVY.samples; i++) {
+        const r = await runPipelineOnce();
+        for (const p of phases) samples[p].push(r[p]);
+        gc();
     }
 
-    console.log(`Created ${numSignals} signals in ${Date.now() - start}ms.`);
-
-    start = Date.now();
-
-    // Subscribe a large number of subscribers to each signal
-    for (const signal of signals) {
-        for (let j = 0; j < numSubscribersPerSignal; j++) {
-            signal.subscribe(subber);
-        }
-    }
-
-    console.log(`Subscribed each signal to ${numSubscribersPerSignal} subscribers each in ${Date.now() - start}ms.`);
-    start = Date.now();
-
-    // Simulate a large number of iterations where we emit values to the signals
-    for (let i = 0; i < numSignals; i++) {
-        signals[i].set(123);
-    }
-
-    
-    console.log(`Set the value of each signal in ${Date.now() - start}ms.`);
-    start = Date.now();
-    
-    await wait(0);
-
-    console.log(`Ran the resulting subscriptions in ${Date.now() - start}ms.`);
+    report('create signals', samples.create);
+    report(`subscribe x${numSubscribersPerSignal}`, samples.subscribe);
+    report('set values', samples.set);
+    report('flush subscriptions', samples.flush);
 }
 
-
-
-async function stressTest2()
-{
+// ---------------------------------------------------------------------------
+// Stress test 2 — computed dependency
+// ---------------------------------------------------------------------------
+function stressTest2() {
     const signal1 = new NativeSignal(1);
     const signal2 = new NativeSignal(2);
+    const computed1 = new Computed(() => signal1.get() + signal2.get());
 
-    const computed1 = new Computed(()=>signal1.get() + signal2.get());
+    bench(
+        'set (lazy computed, no read)',
+        () => { for (let i = 0; i < numSignals; i++) signal1.set(i); },
+        () => {},
+        LIGHT,
+    );
 
-    let start = Date.now();
-
-    for(let i = 0; i < 1_000_000; i++)
-    {
-        signal1.set(i);
-    }
-
-    console.log(`Setting 1m signals with an attached computed took ${Date.now() - start}ms.`);
-    start = Date.now();
-
-    let last = 0;
-
-    for(let i = 0; i < 1_000_000; i++)
-    {
-        signal1.set(i);
-        last = computed1.get();
-    }
-
-    console.log(`With computed get() it took ${Date.now() - start}ms.`);
+    bench(
+        'set + computed.get()',
+        () => {
+            let last = 0;
+            for (let i = 0; i < numSignals; i++) { signal1.set(i); last = computed1.get(); }
+            sink(last); // prevent the get() from being elided
+        },
+        () => {},
+        LIGHT,
+    );
 }
 
-
-async function tests()
-{
+// ---------------------------------------------------------------------------
+async function tests() {
     await stressTest();
-    await stressTest2();
+    stressTest2();
+    if (SINK === Symbol.for('never')) console.log(SINK); // keep SINK observably live
 }
 tests();
-
-import { count, Order, reduce_fast } from 'src/Collections';
-import { Computed, NativeSignal } from 'src/Core';
-
-// async function stressTestCount()
-// {
-//     const num = 100_000;
-//     const order = new Order<number>();
-//     let start = Date.now();
-
-//     for(let i = 0; i < num; i++)
-//         order.push(i);
-
-//     console.log(`Added ${num} numbers to Order in ${Date.now() - start}.`);
-//     start = Date.now();
-
-//     const order_count = count(order,(v)=>1);
-
-//     console.log(`Initialized count in ${Date.now() - start}.`);
-//     start = Date.now();
-
-//     const order_count2 = reduce_fast(order,(v,prev)=>{
-//         switch(v.event)
-//         {
-//             case 'add': return prev + 1;
-//             case 'delete': return prev - 1;
-//         }
-
-//         return prev;
-//     },0,[]);
-
-//     console.log(`Initialized count2 in ${Date.now() - start}.`);
-//     start = Date.now();
-
-
-//     for(let i = 0; i < num; i++)
-//         order.push(i);
-
-//     console.log(order_count.get(),order_count2.get());
-//     console.log(`Added ${num} ${Date.now() - start}.`);
-
-
-
-// }
-
-

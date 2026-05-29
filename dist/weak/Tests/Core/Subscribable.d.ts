@@ -78,42 +78,7 @@ export declare class Subscribable<T, Events extends Record<string, {
      */
     dependants: LinkedList<WEAK_REF<Dirtyable>> | undefined;
     /** Named event subscribers, keyed by event name. */
-    events: Record<string, EventRef<Events[keyof Events]> | undefined>;
     /** Subscribers that fire on *every* named event regardless of name. */
-    any_events: EventRef<undefined> | undefined;
-    /**
-     * Subscribe to a named event, or to *any* named event if `event` is undefined.
-     *
-     * Unlike value subscriptions, event notifications propagate **instantly** — there is
-     * no microtask deferral or coalescing.
-     *
-     * @param fn The callback. Held weakly: keep your own reference if you want to keep receiving events.
-     * @param event Optional event name. If omitted, the callback fires for every event.
-     * @returns A reference token used to unsubscribe later.
-     */
-    subscribe_event<K extends keyof Events>(fn: (source: Subscribable<any, any>, event: Events[K], ref: EventRef<any>) => any, event?: K): EventRef<Events[K]>;
-    /**
-     * Force unsubscribe from a named event.
-     *
-     * Generally not recommended — garbage collection will do the same thing automatically
-     * once the callback has no other references. Use this only when you need to stop
-     * receiving events *immediately* and cannot wait for a GC pass.
-     */
-    unsubscribe_event(reference: EventRef<any>): this;
-    /**
-     * Returns true if there is at least one subscriber that would receive the given event.
-     *
-     * Why this exists: `emit_event` will not be inlined by V8 (too large), but `can_emit`
-     * is small enough to inline. So `if (can_emit(e)) emit_event(e)` can paradoxically
-     * outperform an unconditional `emit_event(e)` call when the common case is "no
-     * subscribers", because the inlined fast-path skips the function call entirely.
-     */
-    can_emit<K extends keyof Events>(event: Events[K]): boolean;
-    /**
-     * Synchronously notify every subscriber of the given named event, plus every
-     * `any_events` subscriber. Dead `WeakRef`s are pruned along the way.
-     */
-    emit_event<K extends keyof Events>(event: Events[K]): this;
     /**
      * Subscribe a function to be called when the value of this Subscribable changes.
      *
@@ -155,12 +120,5 @@ export declare class Subscribable<T, Events extends Record<string, {
      * a `dirty` propagation. Dead `WeakRef`s are pruned along the way.
      */
     emit(value: T): this;
-    /**
-     * Resolve the next time this subscribable emits, then unsubscribe.
-     *
-     * Useful for awaiting a single event in async code:
-     * `const next_value = await some_signal.promise();`
-     */
-    promise(): Promise<T>;
 }
 export default Subscribable;
