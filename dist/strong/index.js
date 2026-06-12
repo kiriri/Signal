@@ -935,7 +935,7 @@ class Effect {
     }
     add_listener(key, source) {
         const ref = this._updaters[key] = (this.sources[key] = source).subscribe(this.update_key_function);
-        return ref.key = key, ref;
+        return ref.key = key, this._source_cache[key] = sources[key].get?.() ?? null, ref;
     }
     destroy() {
         for (let key in this.sources) {
