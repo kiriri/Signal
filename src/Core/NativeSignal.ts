@@ -89,7 +89,7 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
      * dirty propagation has already happened, so we don't need to walk the dependant
      * graph again.
      */
-    override dirty(source: this, ref?: LinkedList<T>, value?: T)
+    override dirty(source: this = this, ref?: LinkedList<T>, value?: T)
     {
         // If it's queued for emit(), then it stands to reason that it has already
         // propagated dirty as well.

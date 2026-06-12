@@ -141,7 +141,7 @@ export declare function reduce_generic(source: I_NativeCollection<any, any>, ide
     dependencies?: Subscribable<any>[];
     merger: (source_item: any, output: any, value: any, prev_value: any) => void;
     mapper?: (source_item: any) => any;
-}): StatefulSubscribable<any>;
+}): StatefulSubscribable<any> | NativeSignal<any>;
 /**
  * A specialized reducer that does not support inner Computed but is significantly
  * faster than `reduce` / `reduce_generic` for the common case.

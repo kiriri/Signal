@@ -57,7 +57,7 @@ export declare class NativeSignal<T> extends Subscribable<T> implements Stateful
      * dirty propagation has already happened, so we don't need to walk the dependant
      * graph again.
      */
-    dirty(source: this, ref?: LinkedList<T>, value?: T): this;
+    dirty(source?: this, ref?: LinkedList<T>, value?: T): this;
     /**
      * Microtask callback used by `dirty`. Resets the `queued` flag and fires the
      * value to all subscribers. Defined as a method (not an arrow on the instance)

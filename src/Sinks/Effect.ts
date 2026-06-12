@@ -120,6 +120,14 @@ export class Effect<Inputs extends Record<string, I_Subscribable<any>>, T>
         this._initialized = true;
     }
 
+    add_listener(key:string, source:I_Subscribable<any>)
+    {
+        const ref = this._updaters[key] = (this.sources[key] = source).subscribe(this.update_key_function);
+        // @ts-ignore
+        ref.key = key;
+        return ref;
+    }
+
     /**
      * Immediately remove all source subscriptions.
      *

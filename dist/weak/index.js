@@ -202,7 +202,7 @@ class NativeSignal {
         const value = fn(this._value);
         value !== this._value && (this._value = value, this.dirty(this, void 0, value));
     }
-    dirty(source, ref, value) {
+    dirty(source = this, ref, value) {
         return this.version < 0 || (void 0 !== this.subscribers ? (this.version = -this.version - 1, 
         EventManager.register_async_emit(this.on_emit, this), this.__base_dirty(source, ref)) : this.dependants && (this.version++, 
         this.__base_dirty(source, ref))), this;
@@ -934,6 +934,10 @@ class Effect {
         const sources = this.sources;
         for (let key in sources) key in this._source_cache || (this._source_cache[key] = sources[key].get?.() ?? null);
         this._initialized = !0;
+    }
+    add_listener(key, source) {
+        const ref = this._updaters[key] = (this.sources[key] = source).subscribe(this.update_key_function);
+        return ref.key = key, ref;
     }
     destroy() {
         for (let key in this.sources) {

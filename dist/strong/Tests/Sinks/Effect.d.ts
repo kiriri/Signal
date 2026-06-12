@@ -64,6 +64,7 @@ export declare class Effect<Inputs extends Record<string, I_Subscribable<any>>, 
      * value.
      */
     initialize(): void;
+    add_listener(key: string, source: I_Subscribable<any>): LinkedList<((source: I_Subscribable<any>, value: any, ref: LinkedList<any>) => any | void) | WeakRef<(source: I_Subscribable<any>, value: any, ref: LinkedList<any>) => any | void>>;
     /**
      * Immediately remove all source subscriptions.
      *
