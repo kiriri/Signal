@@ -53,13 +53,11 @@ export class OrderNode<T> implements OrderNode<T>
 
         this._insert_after(node);
 
-        this.order.emit_event({
-            event: "add",
-            value: this.value,
-            node: this
-        });
-
-        this.order.emit(this.order.first);
+        const order = this.order;
+        if (order.events !== undefined || order.any_events !== undefined)
+            order.emit_event({ event: "add", value: this.value, node: this });
+        if (order.subscribers !== undefined || order.dependants !== undefined)
+            order.dirty();
 
         return node;
     }
@@ -71,13 +69,11 @@ export class OrderNode<T> implements OrderNode<T>
 
         this._insert_before(node);
 
-        this.order.emit_event({
-            event: "add",
-            value: this.value,
-            node: this
-        });
-
-        this.order.emit(this.order.first);
+        const order = this.order;
+        if (order.events !== undefined || order.any_events !== undefined)
+            order.emit_event({ event: "add", value: this.value, node: this });
+        if (order.subscribers !== undefined || order.dependants !== undefined)
+            order.dirty();
 
         return node;
     }
@@ -101,13 +97,11 @@ export class OrderNode<T> implements OrderNode<T>
 
         reference.next = this;
 
-        this.order.emit_event({
-            event: "move",
-            value: this as any,
-            prev_next: prev_next,
-            prev_prev: prev_prev
-        });
-        this.order.emit(this.order.first);
+        const order = this.order;
+        if (order.events !== undefined || order.any_events !== undefined)
+            order.emit_event({ event: "move", value: this as any, prev_next, prev_prev });
+        if (order.subscribers !== undefined || order.dependants !== undefined)
+            order.dirty();
 
         return this;
     }
@@ -133,15 +127,14 @@ export class OrderNode<T> implements OrderNode<T>
         this.next = null;
         this.prev = null;
 
-        this.order.nodes.delete(this.value);
+        const order = this.order;
+        order.nodes.delete(this.value);
 
-        this.order.emit_event({
-            event: "delete",
-            value: this.value,
-            node: this
-        });
+        if (order.events !== undefined || order.any_events !== undefined)
+            order.emit_event({ event: "delete", value: this.value, node: this });
+        if (order.subscribers !== undefined || order.dependants !== undefined)
+            order.dirty();
 
-        this.order.emit(this.order.first);
         this.order = null;
     }
 
@@ -259,13 +252,11 @@ export class Order<T> extends Collection<T, Iterable<T>, OrderEvents<T>>
         if (this.last !== node)
             this.last._insert_after(node);
 
-        this.emit_event({
-            event: "add",
-            value: node.value,
-            node
-        });
+        if (this.events !== undefined || this.any_events !== undefined)
+            this.emit_event({ event: "add", value: node.value, node });
 
-        this.emit(this.first);
+        if (this.subscribers !== undefined || this.dependants !== undefined)
+            this.dirty();
 
         return node;
     }
@@ -280,13 +271,11 @@ export class Order<T> extends Collection<T, Iterable<T>, OrderEvents<T>>
         if (this.first !== node)
             this.first._insert_before(node);
 
-        this.emit_event({
-            event: "add",
-            value: node.value,
-            node
-        });
+        if (this.events !== undefined || this.any_events !== undefined)
+            this.emit_event({ event: "add", value: node.value, node });
 
-        this.emit(this.first);
+        if (this.subscribers !== undefined || this.dependants !== undefined)
+            this.dirty();
 
         return node;
     }
@@ -315,16 +304,11 @@ export class Order<T> extends Collection<T, Iterable<T>, OrderEvents<T>>
         this.first = null;
         this.last = null;
 
-        for (let node of nodes.values())
-        {
-            this.emit_event({
-                event: "delete",
-                value: node.value,
-                node
-            });
-        }
+        if (this.events !== undefined || this.any_events !== undefined)
+            for (let node of nodes.values())
+                this.emit_event({ event: "delete", value: node.value, node });
 
-        this.emit(this.first);
+        this.dirty();
     }
 
     *[Symbol.iterator]()

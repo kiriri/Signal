@@ -138,20 +138,22 @@ export class SignalMap<K, V>
             value = null;
         }
 
-        let exists = this._internal.get(key);
-        if (exists !== value)
-        {
-            const kv: [K, V] = [key, value];
-            this._internal.set(key, value);
-            this._signals?.get(key)?.set(value);
+        const internal = this._internal;
+        let exists = internal.get(key);
+        if (exists === value)
+            return;
 
-            if (exists === undefined)
-            {
-                this.emit_event({ event: "add", value: kv });
-            }
+        internal.set(key, value);
+        if (this._signals !== undefined)
+            this._signals.get(key)?.set(value);
 
+        // Only the first insertion fires `add`; re-keying with a new value does not.
+        // Build the tuple only when there is an `add` to emit to a listener.
+        if (exists === undefined && (this.events !== undefined || this.any_events !== undefined))
+            this.emit_event({ event: "add", value: [key, value] });
+
+        if (this.subscribers !== undefined || this.dependants !== undefined)
             this.dirty();
-        }
     }
 
     /** I_NativeCollection adapter for `delete`. */
@@ -167,40 +169,45 @@ export class SignalMap<K, V>
      */
     delete(key: K)
     {
-        let v = this._internal.get(key)!;
-        if (this._internal.delete(key))
+        const internal = this._internal;
+        const v = internal.get(key)!;
+        if (!internal.delete(key))
+            return;
+
+        if (this._signals !== undefined)
         {
-            const kv: [K, V] = [key, v];
-            let signal = this._signals?.get(key);
-            if (signal?.get() !== undefined)
-                signal?.set(undefined);
-            this.emit_event({ event: "delete", value: kv });
-            this.dirty();
+            const signal = this._signals.get(key);
+            if (signal !== undefined && signal.get() !== undefined)
+                signal.set(undefined);
         }
+
+        if (this.events !== undefined || this.any_events !== undefined)
+            this.emit_event({ event: "delete", value: [key, v] });
+
+        if (this.subscribers !== undefined || this.dependants !== undefined)
+            this.dirty();
     }
 
     /**
-     * Remove every entry. Each removed entry fires its own `delete` event, then a
-     * single whole-collection emission is queued.
+     * Remove every entry. Each removed entry fires its own `delete` event and resets
+     * its per-key `ref` signal, then a single whole-collection emission is queued.
      *
-     * **NOTE — likely bug.** The original implementation captures `this._internal.entries()`
-     * (a *live* iterator) *before* calling `clear()`, then iterates after the clear.
-     * Once `clear()` runs the iterator is empty, so no events fire and no per-key
-     * signals get reset. The fix would be to materialize the entries first
-     * (`[...this._internal.entries()]`) — left as-is here so you can confirm the
-     * intended behaviour before changing it.
+     * The entries are materialized *before* `clear()` — iterating the live iterator
+     * after clearing it would yield nothing.
      */
     clear()
     {
-        const entries = this._internal.entries();
+        const entries = [...this._internal.entries()];
         this._internal.clear();
+
+        const has_listeners = this.events !== undefined || this.any_events !== undefined;
 
         for (let kv of entries)
         {
-            const reference = this._signals?.get(kv[0]);
-            if (reference)
-                reference.set(undefined);
-            this.emit_event({ event: "delete", value: kv });
+            if (this._signals !== undefined)
+                this._signals.get(kv[0])?.set(undefined);
+            if (has_listeners)
+                this.emit_event({ event: "delete", value: kv });
         }
 
         this.dirty();

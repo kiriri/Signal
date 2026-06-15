@@ -100,12 +100,17 @@ export class SignalHeap<T>
 
         if (prev !== undefined)
             prev.prev = ref;
-        else
-            this.items = ref;
 
-        const event = { event: "add", value, ref } as const;
-        this.emit_event(event)
-        this.dirty();
+        // The new node is always the head. (Previously `this.items` was only assigned
+        // when the list was empty, leaving every node after the first unreachable
+        // from `get()`.)
+        this.items = ref;
+
+        if (this.events !== undefined || this.any_events !== undefined)
+            this.emit_event({ event: "add", value, ref });
+
+        if (this.subscribers !== undefined || this.dependants !== undefined)
+            this.dirty();
 
         return ref;
     }
@@ -120,15 +125,15 @@ export class SignalHeap<T>
 
         if (value.prev !== undefined)
             value.prev.next = value.next;
-        else
-        {
-            // No `prev` means this was the head — promote `next` to the new head.
-            if (this.items === value)
-                this.items = this.items.next;
-        }
+        // No `prev` means this was the head — promote `next` to the new head.
+        else if (this.items === value)
+            this.items = value.next;
 
-        this.emit_event({ event: "delete", value: value.value, ref: value })
-        this.dirty();
+        if (this.events !== undefined || this.any_events !== undefined)
+            this.emit_event({ event: "delete", value: value.value, ref: value });
+
+        if (this.subscribers !== undefined || this.dependants !== undefined)
+            this.dirty();
     }
 
     /**
@@ -140,11 +145,12 @@ export class SignalHeap<T>
         let values = this.items;
         this.items = undefined;
 
-        while (values !== undefined)
-        {
-            this.emit_event({ event: "delete", value: values.value, ref: values })
-            values = values.next;
-        }
+        if (this.events !== undefined || this.any_events !== undefined)
+            while (values !== undefined)
+            {
+                this.emit_event({ event: "delete", value: values.value, ref: values });
+                values = values.next;
+            }
 
         this.dirty();
     }

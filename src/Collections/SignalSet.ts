@@ -77,17 +77,21 @@ export class SignalSet<T> extends Collection<T, Set<T>, SetEvents<T>> implements
      */
     add(value: T)
     {
-        let exists = this._internal.has(value);
-        this._internal.add(value);
+        const internal = this._internal;
+        const size = internal.size;
+        internal.add(value);
 
-        if (!exists)
-        {
-            const event = { event: "add", value } as const;
-            // Inlining this directly (rather than guarding with can_emit + emit_event)
-            // saves around 20% in the no-subscriber case.
-            this.emit_event(event)
+        // Already present — `size` is unchanged. One hash op (add) instead of has()+add().
+        if (internal.size === size)
+            return;
+
+        // Only build the event object / walk the event channel when something listens.
+        if (this.events !== undefined || this.any_events !== undefined)
+            this.emit_event({ event: "add", value });
+
+        // Skip the whole-collection dirty when nothing observes it.
+        if (this.subscribers !== undefined || this.dependants !== undefined)
             this.dirty();
-        }
     }
 
     /** I_NativeCollection adapter for `delete`. */
@@ -102,11 +106,14 @@ export class SignalSet<T> extends Collection<T, Set<T>, SetEvents<T>> implements
      */
     delete(value: T)
     {
-        if (this._internal.delete(value))
-        {
-            this.emit_event({ event: "delete", value })
+        if (!this._internal.delete(value))
+            return;
+
+        if (this.events !== undefined || this.any_events !== undefined)
+            this.emit_event({ event: "delete", value });
+
+        if (this.subscribers !== undefined || this.dependants !== undefined)
             this.dirty();
-        }
     }
 
     /**
@@ -119,10 +126,9 @@ export class SignalSet<T> extends Collection<T, Set<T>, SetEvents<T>> implements
 
         this._internal.clear();
 
-        for (let value of values)
-        {
-            this.emit_event({ event: "delete", value })
-        }
+        if (this.events !== undefined || this.any_events !== undefined)
+            for (let value of values)
+                this.emit_event({ event: "delete", value });
 
         this.dirty();
     }

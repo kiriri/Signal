@@ -38,8 +38,6 @@ export type Merger<IN, TARGET> = (
     target: TARGET,
 ) => void;
 
-type PendingEntry<IN> = { prev: IN | NONE; next: IN | NONE; source: ReduceSource<IN> };
-
 /** A signal/collection looks like a collection iff it exposes the named-event channel. */
 function is_collection(source: any): source is I_NativeCollection<any, any>
 {
@@ -73,8 +71,13 @@ export class Reduce<IN, TARGET extends StatefulSubscribable<any>>
     readonly target: TARGET;
     readonly merger: Merger<IN, TARGET>;
 
-    /** Pending changes, keyed by signal-ref or collection-value so churn collapses. */
-    private pending = new Map<any, PendingEntry<IN>>();
+    /**
+     * Pending changes as a flat `[prev, next, source, ...]` log. A plain array (rather
+     * than a value-keyed `Map` of `{prev,next,source}` objects) avoids an allocation and
+     * a hash per change on the hot path. The trade-off: same-tick churn on one value is
+     * replayed instead of collapsed — still correct, since mergers are delta-based.
+     */
+    private pending: any[] = [];
     /** When set, the next flush rebuilds from scratch over every current source value. */
     private fully_dirty = false;
     /** Re-entrancy guard so a merger may freely call `target.get()`. */
@@ -131,7 +134,7 @@ export class Reduce<IN, TARGET extends StatefulSubscribable<any>>
         const reduce = this;
         const handler = function (source: any, value: IN, ref: any)
         {
-            reduce.mark(ref, ref.last, value, source);
+            reduce.mark(ref.last, value, source);
             ref.last = value;
         };
 
@@ -141,7 +144,7 @@ export class Reduce<IN, TARGET extends StatefulSubscribable<any>>
 
         // Seed the current value as an addition, then remember it as `last`.
         const current = signal.get();
-        this.mark(ref, NONE, current, signal);
+        this.mark(NONE, current, signal);
         ref.last = current;
 
         return ref;
@@ -154,16 +157,16 @@ export class Reduce<IN, TARGET extends StatefulSubscribable<any>>
         const handler = function (source: any, event: { event: string; value: IN }, _ref: any)
         {
             if (event.event === "add")
-                reduce.mark(event.value, NONE, event.value, source);
+                reduce.mark(NONE, event.value, source);
             else if (event.event === "delete")
-                reduce.mark(event.value, event.value, NONE, source);
+                reduce.mark(event.value, NONE, source);
         };
 
         const ref = collection.subscribe_event(handler as any);
         this.sources.push({ source: collection, ref, handler });
 
         for (const value of collection.get())
-            this.mark(value, NONE, value, collection);
+            this.mark(NONE, value, collection);
 
         return ref;
     }
@@ -186,18 +189,10 @@ export class Reduce<IN, TARGET extends StatefulSubscribable<any>>
     }
 
     /** Record a pending change and (if listened-to) schedule a flush. */
-    private mark(key: any, prev: IN | NONE, next: IN | NONE, source: ReduceSource<IN>)
+    private mark(prev: IN | NONE, next: IN | NONE, source: ReduceSource<IN>)
     {
         if (!this.fully_dirty)
-        {
-            const existing = this.pending.get(key);
-            // Collapse repeated churn on the same key: keep the original `prev`,
-            // adopt the latest `next` (so add-then-delete nets to (NONE, NONE)).
-            if (existing)
-                existing.next = next;
-            else
-                this.pending.set(key, { prev, next, source });
-        }
+            this.pending.push(prev, next, source);
 
         this.schedule();
     }
@@ -225,17 +220,10 @@ export class Reduce<IN, TARGET extends StatefulSubscribable<any>>
     /** Returns true if anyone is observing the target (value channel or event channel). */
     private target_listened(): boolean
     {
-        const t: any = this.target;
-        if (t.subscribers !== undefined)
-            return true;
-        if (t.any_events !== undefined)
-            return true;
-        const events = t.events;
-        if (events)
-            for (const key in events)
-                if (events[key] !== undefined)
-                    return true;
-        return false;
+        // Only consulted for `lazy_capable` (scalar `NativeSignal`) targets — collection
+        // targets short-circuit to eager in `schedule` and never reach here, so there is
+        // no event channel to scan, just the value-subscriber list.
+        return (this.target as any).subscribers !== undefined;
     }
 
     /** Apply all pending changes (or rebuild from scratch when fully dirty). */
@@ -248,7 +236,7 @@ export class Reduce<IN, TARGET extends StatefulSubscribable<any>>
         if (this.fully_dirty)
         {
             this.fully_dirty = false;
-            this.pending.clear();
+            this.pending.length = 0;
             this.reset();
             for (const { source } of this.sources)
             {
@@ -259,12 +247,12 @@ export class Reduce<IN, TARGET extends StatefulSubscribable<any>>
                     this.merger(NONE, (source as StatefulSubscribable<IN>).get(), source, this.target);
             }
         }
-        else if (this.pending.size)
+        else if (this.pending.length)
         {
             const pending = this.pending;
-            this.pending = new Map();
-            for (const { prev, next, source } of pending.values())
-                this.merger(prev, next, source, this.target);
+            this.pending = [];
+            for (let i = 0; i < pending.length; i += 3)
+                this.merger(pending[i], pending[i + 1], pending[i + 2], this.target);
         }
 
         this.flushing = false;

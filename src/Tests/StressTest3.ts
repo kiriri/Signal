@@ -9,13 +9,14 @@
 
 import { performance } from 'node:perf_hooks';
 import { SignalSet, SignalMap, SignalHeap, Order, count, filter } from 'src/Collections/index.js';
+import { EventManager } from 'src/Core';
 import type { LinkedList } from 'src/Core/Subscribable.js';
 
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 const N = 1_000_000;          // light mutation loops
-const N_REACTIVE = 50_000;    // reactive count allocates one Computed per item
+const N_REACTIVE = 1_000_000;    // reactive count allocates one Computed per item
 
 const HEAVY = { warmup: 1, samples: 5 };
 const LIGHT = { warmup: 3, samples: 10 };
@@ -186,15 +187,15 @@ async function benchEagerEmission()
     for (let tick = 0; tick < TICKS; tick++)
     {
         for (let i = 0; i < PER_TICK; i++) set.add(n++);
-        await wait(0);
+        EventManager.flush();
     }
     const dur = performance.now() - t;
 
     sink(total.get());
     report(`${TICKS} ticks x ${PER_TICK} adds (emits=${emits})`, [dur]);
 
-    // One emission per mutated tick (allow scheduler slack). Pre-fix this was 1.
-    if (emits < TICKS * 0.5)
+    // One emission per mutated tick.
+    if (emits < (TICKS-1))
         throw new Error(`Expected ~one coalesced emit per tick (queued must reset); got ${emits} over ${TICKS} ticks`);
     if (typeof sub !== 'function') throw new Error('unreachable'); // keep `sub` alive
 }
