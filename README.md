@@ -1,12 +1,10 @@
 # native-signal & native-signal-ui
 
-A tiny, framework-independent reactivity core (`native-signal`) and a no-virtual-DOM,
-JSX-based UI layer built on top of it (`native-signal-ui`). No React, no Vue, no
-build-time magic beyond a JSX transform. Signals push changes through a dependency
-graph; the DOM subscribes directly.
+A tiny, framework-independent reactivity core (`native-signal`) that works in servers and browsers alike.
 
-- **`native-signal`** — `NativeSignal`, `Computed`, `Effect`, plus reactive collections and helpers.
-- **`native-signal-ui`** — JSX runtime (`h`/`Fragment`), reactive DOM insertion, control-flow helpers (`If`/`AB`/`Switch`/`ForKeyed`), two-way `bind`, and a `Component` base class.
+`NativeSignal`, `Computed`, `Effect`, plus reactive collections and helpers.
+
+See `native-signal-ui` for a reactive jsx framework which implements these signals.
 
 ---
 
@@ -21,7 +19,6 @@ graph; the DOM subscribes directly.
   - [`detached`](#detached)
   - [Wrappers & events: `local`, `interval`](#wrappers--events-local-interval)
   - [Collections (WIP)](#collections-wip)
-- [Mental model recap](#mental-model-recap)
 
 ---
 
