@@ -1,6 +1,6 @@
 // npx tsx --expose-gc ./Tests/NewTest.ts
 
-import { SignalSet, SignalMap, Order, Reducer, I_NativeCollection } from "src/Collections/index.js";
+import { SignalSet, SignalMap, Order, I_NativeCollection, count, filter, reduce, NONE } from "src/Collections/index.js";
 import { StatefulSubscribable, NativeSignal, Computed, EventManager } from "src/Core/index.js";
 import { interval } from "src/Events/index.js";
 import { Effect } from "src/Sinks/index.js";
@@ -961,5 +961,150 @@ tests.push(async () =>
 
 
 
+
+/**
+ * Reduce: scalar count (weighted sum) over Order / SignalMap / SignalSet.
+ */
+tests.push(async function reduceCountTest()
+{
+    const order = new Order<number>();
+    order.push(1);
+    order.push(2);
+    const node3 = order.push(3);
+
+    const map = new SignalMap<string, number>([["hi", 1], ["hello", 2], ["bonjour", 3]]);
+    const set = new SignalSet<number>([1, 2, 3]);
+
+    const order_count = count(order, v => v);
+    const map_count = count(map, ([, v]) => v);
+    const set_count = count(set, v => v);
+
+    // get() flushes lazily — all three sum to 6.
+    assertValue(6, order_count, map_count, set_count);
+
+    order.push(4);
+    set.add(4);
+    map.set("hallo", 4);
+    await wait(50);
+    assertValue(10, order_count, map_count, set_count);
+
+    order.push(5);
+    set.add(5);
+    map.set("hola", 5);
+    assertValue(15, order_count, map_count, set_count);
+
+    // Deletes fold back out via (value, NONE).
+    node3.delete();
+    set.delete(3);
+    map.delete("bonjour");
+    assertValue(12, order_count, map_count, set_count);
+
+    console.log("Reduce count test done");
+});
+
+/**
+ * Reduce laziness: no merger work happens until the output is read (lazy), and once a
+ * subscriber exists, changes flush as a single coalesced emit per tick (eager).
+ */
+tests.push(async function reduceLazyEagerTest()
+{
+    const set = new SignalSet<number>([1, 2, 3]);
+
+    let merges = 0;
+    const total = reduce<number, NativeSignal<number>>(
+        set,
+        (prev, next, _s, t) =>
+        {
+            merges++;
+            t.set((t as any)._value + (next === NONE ? 0 : next) - (prev === NONE ? 0 : prev));
+        },
+        new NativeSignal(0)
+    );
+
+    // Lazy: mutate without reading — merger must not run yet.
+    set.add(4);
+    set.add(5);
+    set.delete(1);
+    if (merges !== 0)
+        throw new Error("Expected lazy reduce (0 merges before read), got " + merges);
+
+    // Reading flushes. {1,2,3}+4+5-1 = {2,3,4,5} = 14.
+    assertValue(14, total);
+    if (merges === 0)
+        throw new Error("Expected merger to run on read");
+
+    // Eager: attach a subscriber; subsequent changes flush as one coalesced emit.
+    let emits = 0;
+    const sub = (_s: any, _v: number) => { emits++; };
+    total.subscribe(sub);
+
+    merges = 0;
+    set.add(6);
+    set.add(7);
+    await wait(50);
+
+    assertValue(27, total); // {2,3,4,5,6,7}
+    if (merges < 1)
+        throw new Error("Expected eager flush after a tick");
+    if (emits !== 1)
+        throw new Error("Expected a single coalesced emit, got " + emits);
+
+    if (typeof sub !== "function") // keep `sub` referenced (subscribers are weak)
+        throw new Error("unreachable");
+
+    console.log("Reduce lazy/eager test done");
+});
+
+/**
+ * filter: a derived SignalSet that mirrors only the items passing a predicate.
+ */
+tests.push(async function reduceFilterTest()
+{
+    const set = new SignalSet<number>([1, 2, 3]);
+    const big = filter(set, v => v > 1);
+
+    assertSetSize(2, big); // {2,3}
+
+    set.add(4);
+    set.add(0); // filtered out
+    assertSetSize(3, big); // {2,3,4}
+
+    set.delete(2);
+    assertSetSize(2, big); // {3,4}
+
+    const contents = big.get();
+    if (!contents.has(3) || !contents.has(4) || contents.has(0) || contents.has(2))
+        throw new Error("filter contents wrong: " + [...contents]);
+
+    console.log("Reduce filter test done");
+});
+
+/**
+ * Reactive count: the weight reads a signal, so changing it re-counts each affected item.
+ */
+tests.push(async function reduceReactiveTest()
+{
+    const factor = new NativeSignal(1);
+    const set = new SignalSet<number>([10, 20]);
+
+    const total = count(set, v => v * factor.get(), { reactive: true });
+
+    assertValue(30, total); // (10+20)*1
+
+    factor.set(2);
+    await wait(50);
+    assertValue(60, total); // (10+20)*2
+
+    set.add(30);
+    assertValue(120, total); // (10+20+30)*2
+
+    set.delete(10);
+    assertValue(100, total); // (20+30)*2
+
+    if (factor.get() !== 2) // keep `factor` referenced
+        throw new Error("unreachable");
+
+    console.log("Reduce reactive test done");
+});
 
 runTests();

@@ -65,20 +65,25 @@ export interface I_Subscribable<T>
 
 export interface I_Eventable<Events extends Record<string, { event: string, value: any }>>
 {
-    subscribe_event<K extends keyof Events>(
+    // Note: these are intentionally *non-generic* over the event key. A generic
+    // `<K extends keyof Events>` signature is invariant in `K` and would stop a
+    // concrete collection (e.g. `SignalSet`, whose key set is `"add" | "delete"`)
+    // from being assignable to `I_NativeCollection<T, any>`. Keying over
+    // `keyof Events` keeps the interface usable as a generic collection contract.
+    subscribe_event(
         fn: (
             source: Subscribable<any, any>,
-            event: Events[K],
+            event: Events[keyof Events],
             ref: EventRef<any>
         ) => any,
-        event?: K
+        event?: keyof Events
     );
 
     unsubscribe_event(reference: EventRef<any>);
 
-    can_emit<K extends keyof Events>(event: Events[K]);
+    can_emit(event: Events[keyof Events]);
 
-    emit_event<K extends keyof Events>(event: Events[K]);
+    emit_event(event: Events[keyof Events]);
 }
 
 
@@ -113,7 +118,7 @@ export type EventRef<Event> = LinkedList<WEAK_REF<(source: Subscribable<any, any
  * orphaned listeners automatically, at the cost of needing the caller to "own" the
  * callback.
  */
-export class Subscribable<T, Events extends Record<string, { event: string, value: any }> = {}> implements I_Subscribable<T>, I_Eventable<Events>
+export class Subscribable<T, Events extends Record<string, { event: string, value: any }> = {}> implements I_Subscribable<T>
 {
     /**
      * Linked list of value subscribers. Held weakly so they can be GC'd if nobody else
@@ -139,147 +144,6 @@ export class Subscribable<T, Events extends Record<string, { event: string, valu
      * Manually marking this signal as dirty will increase its version.
      */
     version: number = 0;
-
-    /** Named event subscribers, keyed by event name. */
-    // events: Record<string,
-    //     EventRef<Events[keyof Events]> | undefined
-    // >;
-
-    /** Subscribers that fire on *every* named event regardless of name. */
-    // any_events: EventRef<undefined> | undefined;
-
-    // /**
-    //  * Subscribe to a named event, or to *any* named event if `event` is undefined.
-    //  *
-    //  * Unlike value subscriptions, event notifications propagate **instantly** — there is
-    //  * no microtask deferral or coalescing.
-    //  *
-    //  * @param fn The callback. Held weakly: keep your own reference if you want to keep receiving events.
-    //  * @param event Optional event name. If omitted, the callback fires for every event.
-    //  * @returns A reference token used to unsubscribe later.
-    //  */
-    // subscribe_event<K extends keyof Events>(
-    //     fn: (
-    //         source: Subscribable<any, any>,
-    //         event: Events[K],
-    //         ref: EventRef<any>
-    //     ) => any,
-    //     event?: K
-    // )
-    // {
-    //     let previous_first_item = event === undefined ? this.any_events : (this.events ??= {})[event as any];
-
-    //     const new_item: EventRef<Events[K]> = {
-    //         next: previous_first_item,
-    //         // Held weakly so that the next subscription doesn't end up referencing this one
-    //         // (it's a linked list after all), which would create a chain of strong references
-    //         // and prevent GC from cleaning up orphaned subscribers.
-    //         value: $USE_WEAK_REFS$ ? new WeakRef(fn) : fn,
-    //         event: event as string
-    //     };
-
-    //     if (previous_first_item === undefined)
-    //     {
-    //         if (event === undefined)
-    //             this.any_events = new_item;
-    //         else
-    //             this.events[event as string] = new_item;
-    //     }
-
-    //     if (previous_first_item !== undefined)
-    //         previous_first_item.prev = new_item;
-
-    //     return new_item;
-    // }
-
-    // /**
-    //  * Force unsubscribe from a named event.
-    //  *
-    //  * Generally not recommended — garbage collection will do the same thing automatically
-    //  * once the callback has no other references. Use this only when you need to stop
-    //  * receiving events *immediately* and cannot wait for a GC pass.
-    //  */
-    // unsubscribe_event(reference: EventRef<any>)
-    // {
-    //     let event_name = reference["event"];
-
-    //     if (reference.next !== undefined)
-    //         reference.next.prev = reference.prev;
-
-    //     if (reference.prev !== undefined)
-    //         reference.prev.next = reference.next;
-    //     else
-    //     {
-    //         if (event_name === undefined)
-    //             if (this.any_events === reference)
-    //                 this.any_events = reference.next;
-    //             else
-    //                 if (this.events?.[event_name] === reference)
-    //                     this.events[event_name] = reference.next;
-    //     }
-
-    //     return this;
-    // }
-
-    // /**
-    //  * Returns true if there is at least one subscriber that would receive the given event.
-    //  *
-    //  * Why this exists: `emit_event` will not be inlined by V8 (too large), but `can_emit`
-    //  * is small enough to inline. So `if (can_emit(e)) emit_event(e)` can paradoxically
-    //  * outperform an unconditional `emit_event(e)` call when the common case is "no
-    //  * subscribers", because the inlined fast-path skips the function call entirely.
-    //  */
-    // can_emit<K extends keyof Events>(event: Events[K])
-    // {
-    //     return (this.any_events ?? this.events?.[event.event]) !== undefined;
-    // }
-
-    // /**
-    //  * Synchronously notify every subscriber of the given named event, plus every
-    //  * `any_events` subscriber. Dead `WeakRef`s are pruned along the way.
-    //  */
-    // emit_event<K extends keyof Events>(event: Events[K])
-    // {
-    //     let events = this.events?.[event.event];
-    //     while (events !== undefined)
-    //     {
-    //         if ($USE_WEAK_REFS$)
-    //         {
-    //             const deref = events.value["deref"]();
-    //             if (deref === undefined)
-    //                 this.unsubscribe_event(events)
-    //             else
-    //                 deref(this as any, event, events)
-    //         }
-    //         else
-    //         {
-    //             events.value(this, event, events);
-    //         }
-
-    //         events = events.next;
-    //     }
-
-    //     let events2 = this.any_events;
-    //     while (events2 !== undefined)
-    //     {
-    //         if ($USE_WEAK_REFS$)
-    //         {
-    //             const deref = events2.value["deref"]();
-    //             if (deref === undefined)
-    //                 this.unsubscribe_event(events2)
-    //             else
-    //                 deref(this as any, event, events2)
-    //         }
-    //         else
-    //         {
-    //             events2.value(this, event, events2);
-    //         }
-
-    //         events2 = events2.next;
-    //     }
-
-    //     return this;
-    // }
 
     /**
      * Subscribe a function to be called when the value of this Subscribable changes.

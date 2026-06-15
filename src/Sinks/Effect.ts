@@ -122,9 +122,11 @@ export class Effect<Inputs extends Record<string, I_Subscribable<any>>, T>
 
     add_listener(key:string, source:I_Subscribable<any>)
     {
+        // @ts-ignore
         const ref = this._updaters[key] = (this.sources[key] = source).subscribe(this.update_key_function);
         // @ts-ignore
         ref.key = key;
+        // @ts-ignore
         this._source_cache[key] = source["get"]?.() ?? null;
         return ref;
     }

@@ -1,6 +1,6 @@
-import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable.js";
-import type { I_NativeCollection } from "./Collection.js";
-import EventManager, { push_subscribable } from "src/Core/_events.js";
+import { LinkedList, StatefulSubscribable } from "../Core/Subscribable.js";
+import { Collection } from "./Collection.js";
+import { push_subscribable } from "src/Core/_events.js";
 
 export type HeapEvents<T> = {
     add: {
@@ -29,8 +29,8 @@ export type HeapEvents<T> = {
  * **WIP.** Per the project README, collections are subject to change.
  */
 export class SignalHeap<T>
-    extends Subscribable<Iterable<T>, HeapEvents<T>>
-    implements StatefulSubscribable<Iterable<T>>, I_NativeCollection<T, HeapEvents<any>>
+    extends Collection<T, Iterable<T>, HeapEvents<T>>
+    implements StatefulSubscribable<Iterable<T>>
 {
     /** Head of the doubly-linked list. `undefined` when the heap is empty. */
     items: LinkedList<T> | undefined;
@@ -149,26 +149,4 @@ export class SignalHeap<T>
         this.dirty();
     }
 
-    /** True when an emission is already scheduled for the next microtask. */
-    queued = false;
-
-    override dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>)
-    {
-        // If queued for emit, dirty has already been propagated.
-        if (this.queued)
-            return this;
-
-        if (this.subscribers)
-        {
-            this.queued = true;
-            EventManager.register_async_emit(() => this.emit());
-        }
-
-        return super.dirty(source, ref);
-    }
-
-    override emit(value = this.get()): this
-    {
-        return super.emit(value);
-    }
 }

@@ -1,6 +1,6 @@
-import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable.js";
-import type { I_NativeCollection } from "./Collection.js";
-import EventManager, { push_subscribable } from "src/Core/_events.js";
+import { StatefulSubscribable } from "../Core/Subscribable.js";
+import { Collection } from "./Collection.js";
+import { push_subscribable } from "src/Core/_events.js";
 
 export type SetEvents<T> = {
     add: {
@@ -31,7 +31,7 @@ export type SetEvents<T> = {
  * missing value is a no-op (no event, no dirty propagation).
  *
  */
-export class SignalSet<T> extends Subscribable<Set<T>, SetEvents<T>> implements StatefulSubscribable<Set<T>>, I_NativeCollection<T, SetEvents<T>>
+export class SignalSet<T> extends Collection<T, Set<T>, SetEvents<T>> implements StatefulSubscribable<Set<T>>
 {
     /** The underlying native `Set`. Reading this directly bypasses dependency tracking. */
     readonly _internal: Set<T>;
@@ -125,29 +125,6 @@ export class SignalSet<T> extends Subscribable<Set<T>, SetEvents<T>> implements 
         }
 
         this.dirty();
-    }
-
-    /** True when an emission is already scheduled for the next microtask. */
-    queued = false;
-
-    override dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>)
-    {
-        // If queued for emit, dirty has already been propagated.
-        if (this.queued)
-            return this;
-
-        if (this.subscribers)
-        {
-            this.queued = true;
-            EventManager.register_async_emit(() => this.emit());
-        }
-
-        return super.dirty(source, ref);
-    }
-
-    override emit(value: Set<T> = this._internal): this
-    {
-        return super.emit(value);
     }
 
     has(value: T)

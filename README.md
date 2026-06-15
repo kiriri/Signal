@@ -215,6 +215,11 @@ const tick = interval(1000);
 const clock = new Computed(() => new Date(tick.get() && Date.now()).toLocaleTimeString());
 ```
 
+## Flushing changes
+Subscribers and Effects will run synchronously right after the current task is done to avoid
+multiple setters triggering in quick succession (next microtask). You can force the issue by
+calling `EventManager.flush()`, eg for tests.
+
 ## Collections (WIP)
 
 `native-signal` ships reactive collections — `SignalSet`, `SignalMap`, `SignalHeap`, and
@@ -236,6 +241,6 @@ u.set(undefined);          // setting a ref to undefined deletes the entry
 `SignalMap.ref(key)` is the highlight: a per-key signal a `Computed` can depend on without
 re-running when unrelated keys change.
 
-> ⚠️ **Per the upstream README, collections are WIP** — slower than the core, subject to
+> ⚠️ **Collections are WIP** — slower than the core, subject to
 > change, and with at least one known `clear()` quirk on `SignalMap`. Prefer plain signals
 > + `Computed` until you specifically need collection semantics.

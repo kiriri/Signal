@@ -1,7 +1,7 @@
 import { NativeSignal } from "../Core/NativeSignal.js";
-import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable.js";
-import { I_NativeCollection } from "./Collection.js";
-import EventManager, { push_subscribable } from "src/Core/_events.js";
+import { StatefulSubscribable } from "../Core/Subscribable.js";
+import { Collection } from "./Collection.js";
+import { push_subscribable } from "src/Core/_events.js";
 
 export type MapEvents<K, T> = {
     add: {
@@ -32,8 +32,8 @@ export type MapEvents<K, T> = {
  * caring about the rest of the map.
  */
 export class SignalMap<K, V>
-    extends Subscribable<Map<K, V>, MapEvents<K, V>>
-    implements StatefulSubscribable<Map<K, V>>, I_NativeCollection<[K, V], MapEvents<K, V>>
+    extends Collection<[K, V], Map<K, V>, MapEvents<K, V>>
+    implements StatefulSubscribable<Map<K, V>>
 {
     /** The underlying native `Map`. Reading directly bypasses dependency tracking. */
     readonly _internal: Map<K, V>;
@@ -209,28 +209,5 @@ export class SignalMap<K, V>
     has(key: K)
     {
         return this._internal.has(key);
-    }
-
-    /** True when an emission is already scheduled for the next microtask. */
-    queued = false;
-
-    override dirty(source?: I_Subscribable<any>, ref?: any)
-    {
-        // If queued for emit, dirty has already been propagated.
-        if (this.queued)
-            return this;
-
-        if (this.subscribers)
-        {
-            this.queued = true;
-            EventManager.register_async_emit(() => this.emit());
-        }
-
-        return super.dirty(source, ref);
-    }
-
-    override emit(value: Map<K, V> = this._internal): this
-    {
-        return super.emit(value);
     }
 }

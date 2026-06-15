@@ -1,5 +1,4 @@
-import { Subscribable } from "../Core/Subscribable.js";
-import type { I_NativeCollection } from "../Collections/Collection.js";
+import { Collection } from "../Collections/Collection.js";
 
 /**
  * A node in an `Order`. Holds a value plus links to neighboring nodes and a
@@ -193,7 +192,7 @@ export type OrderEvents<T> = {
  * `push`, `shift`, and the `OrderNode.insert_*` methods all return the new
  * `OrderNode<T>`. Hold onto it if you want O(1) deletion or movement later.
  */
-export class Order<T> extends Subscribable<Iterable<T>, OrderEvents<T>> implements I_NativeCollection<T, OrderEvents<T>>
+export class Order<T> extends Collection<T, Iterable<T>, OrderEvents<T>>
 {
     /** Map from value → its node. Enforces uniqueness and provides O(1) lookup. */
     nodes: Map<T, OrderNode<T>> = new Map();
