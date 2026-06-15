@@ -31,10 +31,10 @@ export interface I_Eventable<Events extends Record<string, {
     event: string;
     value: any;
 }>> {
-    subscribe_event<K extends keyof Events>(fn: (source: Subscribable<any, any>, event: Events[K], ref: EventRef<any>) => any, event?: K): any;
+    subscribe_event(fn: (source: Subscribable<any, any>, event: Events[keyof Events], ref: EventRef<any>) => any, event?: keyof Events): any;
     unsubscribe_event(reference: EventRef<any>): any;
-    can_emit<K extends keyof Events>(event: Events[K]): any;
-    emit_event<K extends keyof Events>(event: Events[K]): any;
+    can_emit(event: Events[keyof Events]): any;
+    emit_event(event: Events[keyof Events]): any;
 }
 export interface I_GettableSubscribable<T> extends I_Subscribable<T> {
     get(): T;
@@ -66,7 +66,7 @@ export type EventRef<Event> = LinkedList<WEAK_REF<(source: Subscribable<any, any
 export declare class Subscribable<T, Events extends Record<string, {
     event: string;
     value: any;
-}> = {}> implements I_Subscribable<T>, I_Eventable<Events> {
+}> = {}> implements I_Subscribable<T> {
     /**
      * Linked list of value subscribers. Held weakly so they can be GC'd if nobody else
      * references the function. The list head is `undefined` when there are no subscribers.
@@ -84,8 +84,6 @@ export declare class Subscribable<T, Events extends Record<string, {
      * Manually marking this signal as dirty will increase its version.
      */
     version: number;
-    /** Named event subscribers, keyed by event name. */
-    /** Subscribers that fire on *every* named event regardless of name. */
     /**
      * Subscribe a function to be called when the value of this Subscribable changes.
      *

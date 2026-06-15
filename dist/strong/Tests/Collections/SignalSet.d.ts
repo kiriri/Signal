@@ -1,5 +1,5 @@
-import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable.js";
-import type { I_NativeCollection } from "./Collection.js";
+import { StatefulSubscribable } from "../Core/Subscribable.js";
+import { Collection } from "./Collection.js";
 export type SetEvents<T> = {
     add: {
         event: "add";
@@ -27,7 +27,7 @@ export type SetEvents<T> = {
  * missing value is a no-op (no event, no dirty propagation).
  *
  */
-export declare class SignalSet<T> extends Subscribable<Set<T>, SetEvents<T>> implements StatefulSubscribable<Set<T>>, I_NativeCollection<T, SetEvents<T>> {
+export declare class SignalSet<T> extends Collection<T, Set<T>, SetEvents<T>> implements StatefulSubscribable<Set<T>> {
     /** The underlying native `Set`. Reading this directly bypasses dependency tracking. */
     readonly _internal: Set<T>;
     /**
@@ -59,9 +59,5 @@ export declare class SignalSet<T> extends Subscribable<Set<T>, SetEvents<T>> imp
      * listeners see them all), then a single whole-collection emission is queued.
      */
     clear(): void;
-    /** True when an emission is already scheduled for the next microtask. */
-    queued: boolean;
-    dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>): void | this;
-    emit(value?: Set<T>): this;
     has(value: T): boolean;
 }

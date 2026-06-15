@@ -1,5 +1,5 @@
-import { I_Subscribable, LinkedList, StatefulSubscribable, Subscribable } from "../Core/Subscribable.js";
-import type { I_NativeCollection } from "./Collection.js";
+import { LinkedList, StatefulSubscribable } from "../Core/Subscribable.js";
+import { Collection } from "./Collection.js";
 export type HeapEvents<T> = {
     add: {
         event: "add";
@@ -25,7 +25,7 @@ export type HeapEvents<T> = {
  *
  * **WIP.** Per the project README, collections are subject to change.
  */
-export declare class SignalHeap<T> extends Subscribable<Iterable<T>, HeapEvents<T>> implements StatefulSubscribable<Iterable<T>>, I_NativeCollection<T, HeapEvents<any>> {
+export declare class SignalHeap<T> extends Collection<T, Iterable<T>, HeapEvents<T>> implements StatefulSubscribable<Iterable<T>> {
     /** Head of the doubly-linked list. `undefined` when the heap is empty. */
     items: LinkedList<T> | undefined;
     constructor(items?: Iterable<T> | null | undefined);
@@ -49,8 +49,4 @@ export declare class SignalHeap<T> extends Subscribable<Iterable<T>, HeapEvents<
      * single whole-collection emission is queued.
      */
     clear(): void;
-    /** True when an emission is already scheduled for the next microtask. */
-    queued: boolean;
-    dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>): void | this;
-    emit(value?: Iterable<T>): this;
 }

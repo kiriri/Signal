@@ -1,6 +1,6 @@
 import { NativeSignal } from "../Core/NativeSignal.js";
-import { I_Subscribable, StatefulSubscribable, Subscribable } from "../Core/Subscribable.js";
-import { I_NativeCollection } from "./Collection.js";
+import { StatefulSubscribable } from "../Core/Subscribable.js";
+import { Collection } from "./Collection.js";
 export type MapEvents<K, T> = {
     add: {
         event: "add";
@@ -27,7 +27,7 @@ export type MapEvents<K, T> = {
  * the existence of the entry, so a Computed can subscribe to a single key without
  * caring about the rest of the map.
  */
-export declare class SignalMap<K, V> extends Subscribable<Map<K, V>, MapEvents<K, V>> implements StatefulSubscribable<Map<K, V>>, I_NativeCollection<[K, V], MapEvents<K, V>> {
+export declare class SignalMap<K, V> extends Collection<[K, V], Map<K, V>, MapEvents<K, V>> implements StatefulSubscribable<Map<K, V>> {
     /** The underlying native `Map`. Reading directly bypasses dependency tracking. */
     readonly _internal: Map<K, V>;
     /**
@@ -67,20 +67,12 @@ export declare class SignalMap<K, V> extends Subscribable<Map<K, V>, MapEvents<K
      */
     delete(key: K): void;
     /**
-     * Remove every entry. Each removed entry fires its own `delete` event, then a
-     * single whole-collection emission is queued.
+     * Remove every entry. Each removed entry fires its own `delete` event and resets
+     * its per-key `ref` signal, then a single whole-collection emission is queued.
      *
-     * **NOTE — likely bug.** The original implementation captures `this._internal.entries()`
-     * (a *live* iterator) *before* calling `clear()`, then iterates after the clear.
-     * Once `clear()` runs the iterator is empty, so no events fire and no per-key
-     * signals get reset. The fix would be to materialize the entries first
-     * (`[...this._internal.entries()]`) — left as-is here so you can confirm the
-     * intended behaviour before changing it.
+     * The entries are materialized *before* `clear()` — iterating the live iterator
+     * after clearing it would yield nothing.
      */
     clear(): void;
     has(key: K): boolean;
-    /** True when an emission is already scheduled for the next microtask. */
-    queued: boolean;
-    dirty(source?: I_Subscribable<any>, ref?: any): void | this;
-    emit(value?: Map<K, V>): this;
 }
