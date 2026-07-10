@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -rn '$USE_WEAK_REFS$\\\\|WeakRef\\\\|FinalizationRegistry\\\\|WEAK_REF\\\\|deref' src/)"
+    ]
+  }
+}

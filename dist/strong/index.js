@@ -258,7 +258,7 @@ function detached(fn) {
     return EventManager.global_listen = real_listener_count, res;
 }
 
-class Collection extends Subscribable {
+class Collection {
     events;
     any_events;
     queued=!1;
@@ -297,13 +297,52 @@ class Collection extends Subscribable {
     }
     dirty(source, ref) {
         return this.queued || (void 0 !== this.subscribers && (this.queued = !0, EventManager.register_async_emit(this.on_emit, this)), 
-        super.dirty(source, ref)), this;
+        this.__base_dirty(source, ref)), this;
     }
     on_emit(context) {
         context.queued = !1, context.emit();
     }
     emit(value = this.get()) {
-        return super.emit(value);
+        return this.__base_emit(value);
+    }
+    subscribers;
+    dependants;
+    version=0;
+    subscribe(fn) {
+        const previous_first_item = this.subscribers, new_item = this.subscribers = {
+            next: previous_first_item,
+            value: fn
+        };
+        return void 0 !== previous_first_item && (previous_first_item.prev = new_item), 
+        0 === this.version && (this.version = 1), new_item;
+    }
+    depend(subscribable) {
+        const previous_first_item = this.dependants, new_item = this.dependants = {
+            next: previous_first_item,
+            value: subscribable
+        };
+        return void 0 !== previous_first_item && (previous_first_item.prev = new_item), 
+        0 === this.version && (this.version = 1), new_item;
+    }
+    unsubscribe(reference) {
+        return void 0 !== reference.next && (reference.next.prev = reference.prev), void 0 !== reference.prev ? reference.prev.next = reference.next : this.dependants === reference ? this.dependants = this.dependants.next : this.subscribers === reference && (this.subscribers = this.subscribers.next), 
+        this;
+    }
+    __base_dirty(source, ref) {
+        let dependant = this.dependants;
+        for (;void 0 !== dependant; ) {
+            const deref = dependant.value;
+            void 0 === deref ? this.unsubscribe(dependant) : deref.dirty(this, dependant), dependant = dependant.next;
+        }
+    }
+    __base_emit(value) {
+        let subscriber = this.subscribers;
+        for (;void 0 !== subscriber; ) {
+            const deref = subscriber.value;
+            void 0 === deref ? this.unsubscribe(subscriber) : deref(this, value, subscriber), 
+            subscriber = subscriber.next;
+        }
+        return this;
     }
 }
 

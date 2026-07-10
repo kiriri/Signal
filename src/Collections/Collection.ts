@@ -1,3 +1,4 @@
+import { Flatten } from "src/_decorators/flatten.js";
 import { EventRef, I_Eventable, I_Subscribable, LinkedList, Subscribable } from "../Core/Subscribable.js";
 import EventManager from "../Core/_events.js";
 
@@ -67,6 +68,7 @@ export interface I_NativeCollection<T, Events extends ReqColTypes<T> = ReqColTyp
  * the caller must keep a strong reference to any callback they want to keep
  * receiving events. Orphaned listeners are pruned automatically by GC.
  */
+@Flatten()
 export abstract class Collection<
     T,
     C extends Iterable<T> = Iterable<T>,
