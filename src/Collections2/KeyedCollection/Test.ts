@@ -1,4 +1,4 @@
-import { NativeSignal } from "src/Core/NativeSignal";
+import { NativeSignal } from "../Core/NativeSignal";
 import { EMPTY } from "../Collection2";
 import { KeyedCollectionConsumer } from "./KeyedCollectionConsumer";
 import { RecordCollection } from "./RecordCollection";

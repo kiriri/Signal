@@ -1,4 +1,4 @@
-import EventManager from "src/Core/_events.js";
+import EventManager from "../Core/_events.js";
 import type { I_Subscribable, LinkedList } from "../Core/Subscribable.js";
 import Subscribable from "../Core/Subscribable.js";
 

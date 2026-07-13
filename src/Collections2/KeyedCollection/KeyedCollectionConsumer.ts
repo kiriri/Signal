@@ -1,6 +1,6 @@
-import { StatefulSubscribable, Subscribable } from "src/Core";
+import { StatefulSubscribable, Subscribable } from "../Core";
 import { KeyedCollection, KeyedCollectionEntryRef, ConsumerList } from "./KeyedCollection";
-import { push_subscribable } from "src/Core/_events";
+import { push_subscribable } from "../Core/_events";
 
 
 

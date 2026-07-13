@@ -1,7 +1,7 @@
 // npx tsx --expose-gc ./Tests/NewTest.ts
 
 import { SignalSet, SignalMap, Order, I_NativeCollection, count, filter, reduce, NONE } from "src/Collections/index.js";
-import { StatefulSubscribable, NativeSignal, Computed, EventManager } from "src/Core/index.js";
+import { StatefulSubscribable, NativeSignal, Computed, EventManager } from "../Core/index.js";
 import { interval } from "src/Events/index.js";
 import { Effect } from "src/Sinks/index.js";
 

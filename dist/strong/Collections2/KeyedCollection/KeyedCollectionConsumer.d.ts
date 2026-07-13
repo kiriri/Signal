@@ -1,4 +1,4 @@
-import { StatefulSubscribable, Subscribable } from "src/Core";
+import { StatefulSubscribable, Subscribable } from "../Core";
 import { KeyedCollection, KeyedCollectionEntryRef, ConsumerList } from "./KeyedCollection";
 export declare class KeyedCollectionConsumerCore<K, T, O> extends Subscribable<O> implements StatefulSubscribable<O> {
     is_dirty?: KeyedCollectionEntryRef<K, T>;

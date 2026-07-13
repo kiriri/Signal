@@ -1,9 +1,9 @@
 
 // Instead of one Weak Ref per subscription we instead create only 1 finalizer for each unowned OwnedHandle
 
-import { NativeSignal } from "src/Core";
-import { NativeSignalFlattened } from "src/Core/NativeSignal";
-import { LinkedList, Subscribable } from "src/Core/Subscribable"
+import { NativeSignal } from "../Core";
+import { NativeSignalFlattened } from "../Core/NativeSignal";
+import { LinkedList, Subscribable } from "../Core/Subscribable"
 
 const finalizer = new FinalizationRegistry((state:Handleable)=>{
     state.destroy();

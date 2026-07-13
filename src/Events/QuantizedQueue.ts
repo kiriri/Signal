@@ -1,4 +1,4 @@
-import { LinkedList } from "src/Core/Subscribable.js";
+import { LinkedList } from "../Core/Subscribable.js";
 
 // Bins are sized as 2^bin_log_length entries. With bin_log_length = 8, each level
 // holds 256 buckets, and we have 5 levels — covering up to 256^5 ticks of lookahead

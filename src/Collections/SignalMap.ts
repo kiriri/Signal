@@ -1,7 +1,7 @@
 import { NativeSignal } from "../Core/NativeSignal.js";
 import { StatefulSubscribable } from "../Core/Subscribable.js";
 import { Collection } from "./Collection.js";
-import { push_subscribable } from "src/Core/_events.js";
+import { push_subscribable } from "../Core/_events.js";
 
 export type MapEvents<K, T> = {
     add: {

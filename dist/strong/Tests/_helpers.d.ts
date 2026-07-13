@@ -1,4 +1,4 @@
-import type { StatefulSubscribable } from "src/Core/index.js";
+import type { StatefulSubscribable } from "../Core/index.js";
 import type { SignalSet, SignalMap } from "src/Collections/index.js";
 /**
  * Items that have been finalized (i.e. garbage collected) since the last reset.

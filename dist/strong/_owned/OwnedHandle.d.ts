@@ -1,4 +1,4 @@
-import { LinkedList } from "src/Core/Subscribable";
+import { LinkedList } from "../Core/Subscribable";
 export declare class Handleable {
     private _handle?;
     private _destroyed;

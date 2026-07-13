@@ -1,5 +1,5 @@
-import { Computed } from "src/Core/Computed";
-import { NativeSignal } from "src/Core/NativeSignal";
+import { Computed } from "../Core/Computed";
+import { NativeSignal } from "../Core/NativeSignal";
 
 export type OrSignal<T> = T | Computed<T> | NativeSignal<T>;
 
