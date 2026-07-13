@@ -1,7 +1,3 @@
-import { Computed as Computed$1 } from "src/Core/Computed";
-
-import { NativeSignal as NativeSignal$1 } from "src/Core/NativeSignal";
-
 class EventManager {
     static global_listeners=[ void 0 ];
     static global_listener_length=0;
@@ -427,7 +423,7 @@ class Effect {
 }
 
 function to_signal(v, fallback) {
-    return v instanceof NativeSignal$1 || v instanceof Computed$1 ? v : new NativeSignal$1(void 0 !== v ? v : fallback);
+    return v instanceof NativeSignal || v instanceof Computed ? v : new NativeSignal(void 0 !== v ? v : fallback);
 }
 
 function read(v, fallback) {
