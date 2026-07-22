@@ -1,6 +1,6 @@
 import { Flatten } from "src/_decorators/flatten.js";
 import EventManager, { push_subscribable } from "./_events.js";
-import type { LinkedList, StatefulSubscribable } from "./Subscribable.js";
+import type { I_Subscribable, LinkedList, StatefulSubscribable } from "./Subscribable.js";
 import Subscribable from "./Subscribable.js";
 
 /**
@@ -89,7 +89,7 @@ export class NativeSignal<T> extends Subscribable<T> implements StatefulSubscrib
      * dirty propagation has already happened, so we don't need to walk the dependant
      * graph again.
      */
-    override dirty(source: this = this, ref?: LinkedList<T>, value?: T)
+    override dirty(source: I_Subscribable<any> = this, ref?: LinkedList<any>, value?: any)
     {
         // If it's queued for emit(), then it stands to reason that it has already
         // propagated dirty as well.

@@ -1,4 +1,4 @@
-import type { LinkedList, StatefulSubscribable } from "./Subscribable.js";
+import type { I_Subscribable, LinkedList, StatefulSubscribable } from "./Subscribable.js";
 import Subscribable from "./Subscribable.js";
 /**
  * The simplest stateful subscribable: a single value that can be read with `get()`
@@ -57,7 +57,7 @@ export declare class NativeSignal<T> extends Subscribable<T> implements Stateful
      * dirty propagation has already happened, so we don't need to walk the dependant
      * graph again.
      */
-    dirty(source?: this, ref?: LinkedList<T>, value?: T): this;
+    dirty(source?: I_Subscribable<any>, ref?: LinkedList<any>, value?: any): this;
     /**
      * Microtask callback used by `dirty`. Resets the `queued` flag and fires the
      * value to all subscribers. Defined as a method (not an arrow on the instance)
