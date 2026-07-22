@@ -84,10 +84,11 @@ export class KeyedCollectionConsumerCore<K, T, O> extends Subscribable<O> implem
             // Remember what we reduced so the next change diffs against it.
             dirty.old_value = entry.value;
 
-            if (entry.value === EMPTY)
+            if (entry.value === EMPTY && entry.signal === undefined)
             {
-                // The entry was deleted: drop the ref so entry+ref can be GCed.
-                // Re-adding the key creates a fresh entry with fresh refs.
+                // The entry was deleted (and nothing is ref()ing it, so it's gone from
+                // storage too): drop the ref so entry+ref can be GCed. Re-adding the
+                // key creates a fresh entry with fresh refs.
                 dirty.prev = dirty.next = undefined;
             }
             else

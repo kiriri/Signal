@@ -127,6 +127,66 @@ export function test()
     check("sum after dispose stays stale", d_sum.get(), 5);
     check("source consumer list emptied", d.consumers, undefined);
 
+    // -- ref() ------------------------------------------------------------------
+
+    const rc = new RecordCollection<string, number>({ a: 1, b: 2 });
+
+    // ref() on an existing key starts at the current value.
+    const ref_a = rc.ref("a");
+    check("ref initial value", ref_a.get(), 1);
+
+    // ref() on a not-yet-existing key reports undefined until set.
+    const ref_c = rc.ref("c");
+    check("ref of absent key", ref_c.get(), undefined);
+    check("absent key still reports undefined via get()", rc.get("c"), undefined);
+
+    // Calling ref() twice for the same key returns the same signal instance.
+    check("ref is memoized", rc.ref("a"), ref_a);
+
+    rc.set("c", 99);
+    check("ref picks up value once key is added", ref_c.get(), 99);
+
+    // A computed depending on ref(key) only sees changes to that exact key.
+    let recomputes = 0;
+    const a_plus_one = new Computed(() => { recomputes++; return (ref_a.get() ?? 0) + 1; });
+    check("computed over ref initial", a_plus_one.get(), 2);
+    check("computed over ref recompute count", recomputes, 1);
+
+    rc.set("b", 20); // unrelated key: must not invalidate a computed keyed on "a".
+    check("computed over ref unaffected by unrelated set", a_plus_one.get(), 2);
+    check("computed over ref recompute count unaffected", recomputes, 1);
+
+    rc.set("a", 5);
+    check("computed over ref after set a=5", a_plus_one.get(), 6);
+    check("computed over ref recomputed once", recomputes, 2);
+
+    // ref() survives delete/re-add of its key (unlike a raw KeyedCollectionEntry).
+    rc.delete("a");
+    check("ref reflects delete", ref_a.get(), undefined);
+    check("computed over ref after delete", a_plus_one.get(), 1);
+    rc.set("a", 7);
+    check("ref reflects re-add", ref_a.get(), 7);
+    check("computed over ref after re-add", a_plus_one.get(), 8);
+
+    // A ref'd-but-absent key doesn't leak a fake value into the aggregate sum:
+    // its placeholder entry is EMPTY, so the reducer treats it as a no-op.
+    const rc2 = new RecordCollection<string, number>({ x: 1 });
+    const rc2_sum = new KeyedCollectionConsumer(0, sum_reducer, rc2);
+    check("sum before ref of absent key", rc2_sum.get(), 1);
+    rc2.ref("y"); // plants an EMPTY placeholder for "y"
+    check("sum unaffected by ref of absent key", rc2_sum.get(), 1);
+    rc2.set("y", 4);
+    check("sum after setting the ref'd key", rc2_sum.get(), 5);
+
+    // Same, but the consumer attaches *after* the placeholder already exists
+    // (initialize_consumer path instead of entry_added).
+    const rc3 = new RecordCollection<string, number>({ p: 1 });
+    rc3.ref("q"); // placeholder exists before any consumer is attached
+    const rc3_sum = new KeyedCollectionConsumer(0, sum_reducer, rc3);
+    check("sum with pre-existing placeholder", rc3_sum.get(), 1);
+    rc3.set("q", 9);
+    check("sum after setting pre-existing placeholder's key", rc3_sum.get(), 10);
+
     console.log(failures === 0 ? "\nAll tests passed." : `\n${failures} test(s) FAILED.`);
     if ((globalThis as any).process)
         (globalThis as any).process.exitCode = failures === 0 ? 0 : 1;

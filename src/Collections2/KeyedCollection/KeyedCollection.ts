@@ -1,13 +1,35 @@
+import { NativeSignal, ReadonlySignal } from "../../Core/NativeSignal.js";
 import { StatefulSubscribable, Subscribable } from "../../Core/Subscribable.js";
 import { push_subscribable } from "../../Core/_events.js";
 import { EMPTY } from "../Collection2.js";
 import type { KeyedCollectionConsumer, KeyedCollectionConsumerCore } from "./KeyedCollectionConsumer.js";
 
+/**
+ * A permanent per-key signal exposing the live value at `key` in `source`. Unlike
+ * `KeyedCollectionEntry` (which is discarded on delete and recreated fresh on the next
+ * `set`), this survives delete/re-add: `KeyedCollection.ref()` plants an `EMPTY`-valued
+ * placeholder entry to hold it when the key is absent, instead of letting the entry
+ * disappear. A change to this exact key updates it directly (see
+ * `KeyedCollectionEntry.set`), so depending on it does not over-invalidate on
+ * unrelated changes elsewhere in the collection, unlike `collection.get(key)`.
+ */
+export class KeyedCollectionEntrySignal<K, T> extends NativeSignal<T | undefined>
+{
+    constructor(
+        public readonly source: KeyedCollection<K, T, any>,
+        public readonly key: K,
+        value: T | undefined,
+    )
+    {
+        super(value);
+    }
+}
+
 export class KeyedCollectionEntry<K, T>
 {
-    // TODO : per-key reactivity for computeds. `get(key)` currently registers a
-    // dependency on the whole collection. The plan is permanent per-key signal refs
-    // which survive delete/add/set and can be depended upon individually.
+    // Lazily created by `KeyedCollection.ref()`; kept in sync by `set()` below.
+    // `undefined` for the (common) case where nobody ever asked for a per-key ref.
+    signal: KeyedCollectionEntrySignal<K, T> | undefined;
 
     constructor(
         public source: KeyedCollection<K, T, any>,
@@ -51,6 +73,11 @@ export class KeyedCollectionEntry<K, T>
 
             subscriber = next;
         }
+
+        // O(1) no-op check for the common case where nobody ever called `.ref()`
+        // on this key.
+        if (this.signal !== undefined)
+            this.signal.set(value === EMPTY ? undefined : value);
 
         this.source.dirty();
     }
@@ -98,6 +125,38 @@ export abstract class KeyedCollection<K, T, ITERATOR> extends Subscribable<ITERA
 
     abstract set(key: K, value: T): void;
     abstract delete(key: K): boolean;
+
+    /**
+     * Create a brand-new entry for `key`, insert it into the underlying storage, and
+     * announce it to existing consumers via `entry_added`. Shared by `set()` (real
+     * value) and `ref()` (an `EMPTY` placeholder, so a signal can be handed out for a
+     * key that doesn't exist yet).
+     */
+    protected abstract create_entry(key: K, value: T | typeof EMPTY): KeyedCollectionEntry<K, T>;
+
+    /**
+     * A readonly signal tracking the value at `key`, independent of the rest of the
+     * collection: it only updates when this exact key changes (see
+     * `KeyedCollectionEntry.set`), so depending on it doesn't over-invalidate the way
+     * `get(key)` does. The signal survives delete/re-add of the key.
+     *
+     * If `key` isn't currently present, this plants an `EMPTY`-valued placeholder entry
+     * to hold the signal — the same entry `set()` will find and reuse (via the same
+     * lookup it already does), so no extra bookkeeping structure is needed. The
+     * placeholder (and the signal) live for as long as the collection does; calling
+     * `ref()` again for the same key returns the same signal instance.
+     */
+    ref(key: K): ReadonlySignal<T | undefined>
+    {
+        let entry = this.entry(key);
+        if (entry === undefined)
+            entry = this.create_entry(key, EMPTY);
+
+        if (entry.signal === undefined)
+            entry.signal = new KeyedCollectionEntrySignal(this, key, entry.value === EMPTY ? undefined : entry.value);
+
+        return entry.signal;
+    }
 
     /**
      * Bring lazily-computed upstream state up to date (see MappedCollection).
@@ -197,8 +256,8 @@ export abstract class KeyedCollection<K, T, ITERATOR> extends Subscribable<ITERA
     {
         this.settle();
 
-        // TODO : per-key dependency granularity — for now a keyed read depends on the
-        // whole collection (over-invalidates, but is correct).
+        // A keyed read still depends on the whole collection (over-invalidates, but is
+        // correct). For per-key granularity, depend on `ref(key)` instead.
         push_subscribable(this);
 
         if (key !== undefined)
