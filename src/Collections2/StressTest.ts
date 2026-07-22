@@ -15,6 +15,9 @@
 // per-second rates are averaged, so a single slow window (GC, JIT) shows up as
 // spread rather than silently skewing the headline number.
 
+// @ts-ignore Compile-time define; substituted by rollup, provided manually under tsx.
+globalThis.$USE_WEAK_REFS$ = true;
+
 import { EMPTY } from "./Collection2.js";
 import { MapCollection } from "./KeyedCollection/MapCollection.js";
 import { KeyedCollectionConsumer } from "./KeyedCollection/KeyedCollectionConsumer.js";

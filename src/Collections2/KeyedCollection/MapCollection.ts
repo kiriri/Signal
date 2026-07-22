@@ -1,103 +1,52 @@
-import { EMPTY } from "../Collection2";
-import { KeyedCollection, KeyedCollectionEntry, KeyedCollectionEntryRef } from "./KeyedCollection";
-import { KeyedCollectionConsumer, KeyedCollectionConsumerCore } from "./KeyedCollectionConsumer";
+import { EMPTY } from "../Collection2.js";
+import { KeyedCollection, KeyedCollectionEntry } from "./KeyedCollection.js";
 
 export class MapCollection<K, T> extends KeyedCollection<K, T, Map<K, KeyedCollectionEntry<K, T>>>
 {
-    value: Map<K, KeyedCollectionEntry<K, T>>;
+    value = new Map<K, KeyedCollectionEntry<K, T>>();
 
-    constructor(value: Map<K, T>)
+    constructor(init?: Map<K, T> | Iterable<readonly [K, T]>)
     {
         super();
 
-        for(let [k,v] of value)
-        {
-            this.set(k, v);
-        }
+        if (init)
+            for (const [k, v] of init)
+                this.set(k, v);
     }
 
-    initialize_consumer(consumer: KeyedCollectionConsumerCore<K, T, any>)
+    entry(key: K)
     {
-        for(let ref of this.value.values())
-        {
-            let r = new KeyedCollectionEntryRef(
-                undefined,
-                consumer.is_dirty,
-                EMPTY,
-                ref,
-                consumer
-            );
+        return this.value.get(key);
+    }
 
-            if(consumer.is_dirty)
-                consumer.is_dirty.prev = r;
-
-            consumer.is_dirty = r;
-        }
+    entries()
+    {
+        return this.value.values();
     }
 
     set(key: K, value: T)
     {
-
-        let ref = this.value.get(key);
-        if (!ref)
+        const entry = this.value.get(key);
+        if (entry === undefined)
         {
-            ref = new KeyedCollectionEntry(
-                this,
-                key,
-                value,
-                undefined
-            );
-
-            this.value.set(key, ref);
-            // Add all consumer/subscribers! (Dirty directly)
-            let consumer = this.consumers;
-            while (consumer)
-            {
-                let r = new KeyedCollectionEntryRef(
-                    undefined,
-                    consumer.consumer.is_dirty,
-                    EMPTY,
-                    ref,
-                    consumer.consumer
-                );
-                if(consumer.consumer.is_dirty)
-                    consumer.consumer.is_dirty.prev = r;
-                consumer.consumer.is_dirty = r;
-                consumer = consumer.next;
-            }
+            const new_entry = new KeyedCollectionEntry(this, key, value, undefined);
+            this.value.set(key, new_entry);
+            this.entry_added(new_entry);
         }
         else
-        {
-            ref.value = value;
-            // Iterate non dirty subscribers (see ref.subscribers)
-            // Consumers who are already dirty for this entry will not appear here. 
-            let subscriber = ref.subscribers;
-            while (subscriber)
-            {
-                let next = subscriber.next;
-                // prepend subscriber to the consumer's dirty list:
-                subscriber.next = subscriber.consumer.is_dirty;
-                if(subscriber.consumer.is_dirty)
-                    subscriber.consumer.is_dirty.prev = subscriber;
-                subscriber.consumer.is_dirty = subscriber;
-                
-                subscriber = next;
-            }
-            // last prepended subscriber has no prev:
-            if(subscriber)
-                subscriber.prev = undefined;
-            ref.subscribers = undefined; // all have been marked dirty.
-
-        }
-
-        this.dirty();
+            entry.set(value);
     }
 
     delete(key: K)
     {
+        const entry = this.value.get(key);
+        if (entry === undefined)
+            return false;
+
         this.value.delete(key);
-        this.dirty();
-
+        // Marks all consumer refs dirty with value EMPTY (reducers see a removal),
+        // after which poll() drops the refs so entry and refs can be GCed.
+        entry.set(EMPTY);
+        return true;
     }
-
 }
