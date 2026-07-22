@@ -41,7 +41,7 @@ export class MappedCollection<K, S, T> extends MapCollection<K, T>
 
         this.consumer = new KeyedCollectionConsumer(this, apply, source);
 
-        // A source change dirties the consumer core (via enqueue); registering this
+        // A source change dirties the consumer core; registering this
         // collection as a dependant forwards that invalidation to computeds depending
         // on the mapped collection. Downstream *consumers* are instead reached through
         // the settle() chain when they poll.

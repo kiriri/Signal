@@ -35,24 +35,11 @@ export class KeyedCollectionConsumerCore<K, T, O> extends Subscribable<O> implem
         this.reducer = reducer;
     }
 
-    /**
-     * Prepend a ref to the dirty list. The ref must not currently be linked into any
-     * list (entry.set and entry_added guarantee this).
-     * If this is the first dirty entry since the last poll, invalidation is propagated
-     * to this consumer's dependants (computeds etc.) exactly once — polling stays lazy.
-     */
-    enqueue(ref: KeyedCollectionEntryRef<K, T>)
-    {
-        const head = this.is_dirty;
-        ref.prev = undefined;
-        ref.next = head;
-        this.is_dirty = ref;
-
-        if (head !== undefined)
-            head.prev = ref;
-        else
-            this.dirty();
-    }
+    // NOTE : refs are prepended to `is_dirty` inline at the call sites for speed —
+    // see KeyedCollectionEntry.set, KeyedCollection.entry_added and
+    // KeyedCollection.initialize_consumer. On the clean→dirty transition the call
+    // sites invoke `this.dirty()` exactly once so dependants get invalidated while
+    // polling stays lazy.
 
     /**
      * Bring `_value` up to date: settle upstream sources first (a source may itself be
@@ -70,7 +57,13 @@ export class KeyedCollectionConsumerCore<K, T, O> extends Subscribable<O> implem
 
     get()
     {
-        this.settle();
+        // settle(), inlined.
+        const sources = this.refs2;
+        for (let i = 0; i < sources.length; i++)
+            sources[i].source.settle();
+
+        if (this.is_dirty)
+            this.poll();
 
         push_subscribable(this);
         return this._value;

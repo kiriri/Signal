@@ -34,7 +34,21 @@ export class KeyedCollectionEntry<K, T>
         while (subscriber)
         {
             const next = subscriber.next;
-            subscriber.consumer.enqueue(subscriber);
+
+            // Prepend to the consumer's dirty list (inlined on the hot path; the same
+            // logic lives in entry_added/initialize_consumer). On the clean→dirty
+            // transition, propagate invalidation to the consumer's dependants once —
+            // polling stays lazy.
+            const consumer = subscriber.consumer;
+            const head = consumer.is_dirty;
+            subscriber.prev = undefined;
+            subscriber.next = head;
+            consumer.is_dirty = subscriber;
+            if (head !== undefined)
+                head.prev = subscriber;
+            else
+                consumer.dirty();
+
             subscriber = next;
         }
 
@@ -114,7 +128,14 @@ export abstract class KeyedCollection<K, T, ITERATOR> extends Subscribable<ITERA
     initialize_consumer(consumer: KeyedCollectionConsumerCore<K, T, any>)
     {
         for (const entry of this.entries())
-            consumer.enqueue(new KeyedCollectionEntryRef(undefined, undefined, EMPTY, entry, consumer));
+        {
+            // Constructed directly as the new dirty-list head. No dirty() propagation:
+            // a consumer being initialized cannot have dependants yet.
+            const ref = new KeyedCollectionEntryRef(undefined, consumer.is_dirty, EMPTY, entry, consumer);
+            if (consumer.is_dirty !== undefined)
+                consumer.is_dirty.prev = ref;
+            consumer.is_dirty = ref;
+        }
     }
 
     /**
@@ -126,7 +147,16 @@ export abstract class KeyedCollection<K, T, ITERATOR> extends Subscribable<ITERA
         let consumer = this.consumers;
         while (consumer)
         {
-            consumer.consumer.enqueue(new KeyedCollectionEntryRef(undefined, undefined, EMPTY, entry, consumer.consumer));
+            // Prepend a fresh ref to the consumer's dirty list; on the clean→dirty
+            // transition, propagate invalidation to the consumer's dependants once.
+            const core = consumer.consumer;
+            const head = core.is_dirty;
+            core.is_dirty = new KeyedCollectionEntryRef(undefined, head, EMPTY, entry, core);
+            if (head !== undefined)
+                head.prev = core.is_dirty;
+            else
+                core.dirty();
+
             consumer = consumer.next;
         }
 
